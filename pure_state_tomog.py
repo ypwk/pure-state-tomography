@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-print("Initializing . . .", end='', flush=True)
+print("Initializing . . .", end="", flush=True)
 
 from numpy import ndarray, array, sqrt, asarray, zeros
 
@@ -8,6 +8,7 @@ from qiskit import QuantumCircuit, transpile, result, assemble
 from qiskit import Aer, execute
 
 from enum import Enum
+
 
 class m_type(Enum):
     real_hadamard = 1
@@ -65,22 +66,33 @@ def infer_target(
     Returns: numpy.ndarray
     """
 
-    if fast_pow(2, op_pos) != abs(target_idx - source_idx):
+    if fast_pow(2, n_qubits - op_pos - 1) != abs(target_idx - source_idx):
         raise ValueError(
             "Given source and target indices do not match tensor structure!"
         )
 
     res = array([0.0, 0.0])
+    if target_idx < source_idx:  # backwards
+        res[0] = (
+            source_val[1] * (v_measure[source_idx] - v_measure[target_idx])
+            + source_val[0] * (h_measure[target_idx] - h_measure[source_idx])
+        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
 
-    res[0] = (
-        source_val[1] * (v_measure[target_idx] - v_measure[source_idx])
-        + source_val[0] * (h_measure[source_idx] - h_measure[target_idx])
-    ) / (2 * (source_val[0] * source_val[0] - source_val[1] * source_val[1]))
+        res[1] = (
+            source_val[0] * (v_measure[source_idx] - v_measure[target_idx])
+            - source_val[1] * (h_measure[target_idx] - h_measure[source_idx])
+        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
 
-    res[1] = (
-        source_val[1] * (h_measure[source_idx] - h_measure[target_idx])
-        + source_val[0] * (v_measure[target_idx] - v_measure[source_idx])
-    ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
+    else:  # forwards
+        res[0] = (
+            source_val[1] * (v_measure[target_idx] - v_measure[source_idx])
+            + source_val[0] * (h_measure[source_idx] - h_measure[target_idx])
+        ) / (2 * (source_val[0] * source_val[0] - source_val[1] * source_val[1]))
+
+        res[1] = (
+            source_val[1] * (h_measure[source_idx] - h_measure[target_idx])
+            + source_val[0] * (v_measure[target_idx] - v_measure[source_idx])
+        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
 
     return res
 
@@ -166,7 +178,7 @@ class meas_manager:
 
         state_circuit = self.m_state.copy("execute")
         for a in range(self.m_state.num_qubits):
-            if a == op_pos:
+            if a == self.m_state.num_qubits - op_pos - 1:
                 if measure_type == m_type.real_hadamard:
                     state_circuit.h(a)
                 elif measure_type == m_type.cmplx_hadamard:
@@ -181,18 +193,21 @@ class meas_manager:
                     state_circuit.i(a)
             else:
                 state_circuit.i(a)
-        
+
         # SHOTS = 2048
         # raw_result = run_circuit(circ_to_ex, SHOTS)
-        
+
         # using statevector for precise execution
-        simulator = Aer.get_backend('statevector_simulator')
+        simulator = Aer.get_backend("statevector_simulator")
         raw_result = execute(state_circuit, simulator).result()
         statevector = asarray(raw_result.get_statevector(state_circuit))
 
         res = zeros(fast_pow(2, self.m_state.num_qubits))
         for idx in range(len(statevector)):
-            res[idx] = abs(statevector[idx].real * statevector[idx].real - statevector[idx].imag * statevector[idx].imag)
+            res[idx] = abs(
+                statevector[idx].real * statevector[idx].real
+                - statevector[idx].imag * statevector[idx].imag
+            )
 
         self.num_measurements += 1
         self.__measurements[measure_type][op_pos] = res
@@ -210,8 +225,16 @@ class meas_manager:
             measurement_result (numpy.ndarray):
         """
         if measure_type == m_type.identity:
-            return self.__measurements[measure_type][0]
-        return self.__measurements[measure_type][op_pos]
+            return (
+                self.add_m(measure_type=measure_type, op_pos=op_pos)
+                if self.__measurements[measure_type][0] is None
+                else self.__measurements[measure_type][0]
+            )
+        return (
+            self.add_m(measure_type=measure_type, op_pos=op_pos)
+            if self.__measurements[measure_type][op_pos] is None
+            else self.__measurements[measure_type][op_pos]
+        )
 
 
 def pure_state_tomography(input_state=None, n_qubits=2):
@@ -225,7 +248,10 @@ def pure_state_tomography(input_state=None, n_qubits=2):
     # TODO: Replace with meaningful input vector
     DIM = fast_pow(2, n_qubits)
     if input_state is None:  # generate random input vector if it is None
-        input_state = array([1/2, 1/sqrt(2), 1/sqrt(6), 1/sqrt(12)])
+        # input_state = array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)])
+        # input_state = array([1/2, -1/sqrt(2), 1/sqrt(6), 1/sqrt(12)])
+        # input_state = array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)])
+        input_state = array([1/2, 0, 0, -3/sqrt(12)])
 
     print("Input vector: {}".format(input_state), flush=True)
 
@@ -235,22 +261,26 @@ def pure_state_tomography(input_state=None, n_qubits=2):
     mm = meas_manager(m_state=mystery_state, n_qubits=n_qubits)
     identity_measurement = mm.add_m(m_type.identity, 0)
     non_zero_counts = find_nonzero_positions(identity_measurement)
+    non_zero_counts = {_: False for _ in non_zero_counts}
 
     # call recursive tomography helper
     res = zeros((DIM, 2))
-    res[0][0] = sqrt(identity_measurement[0])
+    mkey = min(non_zero_counts.keys())
+    res[mkey][0] = sqrt(identity_measurement[0])
+    non_zero_counts[mkey] = True
 
     __rec_tomography_helper(res, 0, DIM, non_zero_counts, mm)
-    
+
     print("Number of unitary operators applied: {}".format(mm.num_measurements))
-    
+
     return [res[a][0] + 1j * res[a][1] for a in range(DIM)]
+
 
 def __rec_tomography_helper(
     target_arr: ndarray,
     start_pos: int,
-    range: int,
-    nz_counts: list,
+    breadth: int,
+    counts: list,
     mm: meas_manager,
 ) -> None:
     """A recursive helper for the pure state tomography process.
@@ -258,52 +288,77 @@ def __rec_tomography_helper(
     Args:
         target_arr (numpy.ndarray): The array with incomplete measurements
         start_pos (int): The starting position in the array for this function to infer
-        range (int): The number of positions for this function to infer, starting with the starting position
-        nz_counts (List): A list of nonzero counts
+        breadth (int): The number of positions for this function to infer, starting with the starting position
+        counts (List): A list of nonzero counts
         mm (meas_manager): Measure manager keeping track of measurement values.
     """
-    # fetch measurements
-    op_pos = fast_log2(range) - 1
-    cmplx_m = mm.fetch_m(measure_type=m_type.cmplx_hadamard, op_pos=op_pos)
-    real_m = mm.fetch_m(measure_type=m_type.real_hadamard, op_pos=op_pos)
+    # check what measurements are doable at the current level.
+    op_pos = mm.n_qubits - fast_log2(breadth)
+    for idx in range(start_pos, start_pos + breadth):
+        if idx in counts and counts[idx] is False:  # has not been calculated yet
+            if idx & (1 << (mm.n_qubits - op_pos - 1)):
+                if (
+                    idx - breadth // 2 in counts
+                    and counts[idx - breadth // 2] is True
+                ):
+                    cmplx_m = mm.fetch_m(
+                        measure_type=m_type.cmplx_hadamard, op_pos=op_pos
+                    )
+                    real_m = mm.fetch_m(
+                        measure_type=m_type.real_hadamard, op_pos=op_pos
+                    )
 
-    # generate if doesn't exist — this will take a long time.
-    if cmplx_m is None:
-        cmplx_m = mm.add_m(measure_type=m_type.cmplx_hadamard, op_pos=op_pos)
-    if real_m is None:
-        real_m = mm.add_m(measure_type=m_type.real_hadamard, op_pos=op_pos)
+                    target_arr[idx] = infer_target(
+                        target_idx=idx,
+                        source_idx=idx - breadth // 2,
+                        source_val=target_arr[idx - breadth // 2],
+                        n_qubits=fast_log2(target_arr.shape[0]),
+                        h_measure=real_m,
+                        v_measure=cmplx_m,
+                        op_pos=op_pos,
+                    )
+                    counts[idx] = True
 
-    # calculate target
-    target_arr[start_pos + range // 2] = infer_target(
-        target_idx=start_pos + range // 2,
-        source_idx=start_pos,
-        source_val=target_arr[start_pos],
-        n_qubits=fast_log2(target_arr.size),
-        h_measure=real_m,
-        v_measure=cmplx_m,
-        op_pos=op_pos,
-    )
-    nz_counts.remove(start_pos + range // 2)
+            else:
+                if (
+                    idx + breadth // 2 in counts
+                    and counts[idx + breadth // 2] is True
+                ):
+                    cmplx_m = mm.fetch_m(
+                        measure_type=m_type.cmplx_hadamard, op_pos=op_pos
+                    )
+                    real_m = mm.fetch_m(
+                        measure_type=m_type.real_hadamard, op_pos=op_pos
+                    )
+
+                    target_arr[idx] = infer_target(
+                        target_idx=idx,
+                        source_idx=idx + breadth // 2,
+                        source_val=target_arr[idx + breadth // 2],
+                        n_qubits=fast_log2(target_arr.shape[0]),
+                        h_measure=real_m,
+                        v_measure=cmplx_m,
+                        op_pos=op_pos,
+                    )
+                    counts[idx] = True
 
     # recur
-    if range > 2:
+    if breadth > 2:
         __rec_tomography_helper(
             target_arr=target_arr,
             start_pos=start_pos,
-            range=range // 2,
-            nz_counts=nz_counts,
+            breadth=breadth // 2,
+            counts=counts,
             mm=mm,
         )
         __rec_tomography_helper(
             target_arr=target_arr,
-            start_pos=start_pos + range // 2,
-            range=range // 2,
-            nz_counts=nz_counts,
+            start_pos=start_pos + breadth // 2,
+            breadth=breadth // 2,
+            counts=counts,
             mm=mm,
         )
 
-
-import time 
 
 if __name__ == "__main__":
     print(" Done!")
