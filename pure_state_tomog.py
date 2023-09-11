@@ -66,11 +66,6 @@ def infer_target(
     Returns: numpy.ndarray
     """
 
-    if fast_pow(2, n_qubits - op_pos - 1) != abs(target_idx - source_idx):
-        raise ValueError(
-            "Given source and target indices do not match tensor structure!"
-        )
-
     res = array([0.0, 0.0])
     if target_idx < source_idx:  # backwards
         res[0] = (
@@ -250,8 +245,8 @@ def pure_state_tomography(input_state=None, n_qubits=2):
     if input_state is None:  # generate random input vector if it is None
         # input_state = array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)])
         # input_state = array([1/2, -1/sqrt(2), 1/sqrt(6), 1/sqrt(12)])
-        # input_state = array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)])
-        input_state = array([1/2, 0, 0, -3/sqrt(12)])
+        input_state = array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)])
+        # input_state = array([1/2, 0, 0, -3/sqrt(12)])
 
     print("Input vector: {}".format(input_state), flush=True)
 
@@ -259,106 +254,85 @@ def pure_state_tomography(input_state=None, n_qubits=2):
 
     # do initial identity measurement
     mm = meas_manager(m_state=mystery_state, n_qubits=n_qubits)
-    identity_measurement = mm.add_m(m_type.identity, 0)
-    non_zero_counts = find_nonzero_positions(identity_measurement)
-    non_zero_counts = {_: False for _ in non_zero_counts}
-
-    # call recursive tomography helper
+    
     res = zeros((DIM, 2))
-    mkey = min(non_zero_counts.keys())
-    res[mkey][0] = sqrt(identity_measurement[0])
-    non_zero_counts[mkey] = True
-
-    __rec_tomography_helper(res, 0, DIM, non_zero_counts, mm)
+    __iter_inf_helper(res, mm)
 
     print("Number of unitary operators applied: {}".format(mm.num_measurements))
 
     return [res[a][0] + 1j * res[a][1] for a in range(DIM)]
 
 
-def __rec_tomography_helper(
+def __iter_inf_helper(
     target_arr: ndarray,
-    start_pos: int,
-    breadth: int,
-    counts: list,
     mm: meas_manager,
 ) -> None:
-    """A recursive helper for the pure state tomography process.
+    """An iterative implementation of the inference helper
 
     Args:
         target_arr (numpy.ndarray): The array with incomplete measurements
-        start_pos (int): The starting position in the array for this function to infer
-        breadth (int): The number of positions for this function to infer, starting with the starting position
-        counts (List): A list of nonzero counts
         mm (meas_manager): Measure manager keeping track of measurement values.
     """
-    # check what measurements are doable at the current level.
-    op_pos = mm.n_qubits - fast_log2(breadth)
-    for idx in range(start_pos, start_pos + breadth):
-        if idx in counts and counts[idx] is False:  # has not been calculated yet
-            if idx & (1 << (mm.n_qubits - op_pos - 1)):
-                if (
-                    idx - breadth // 2 in counts
-                    and counts[idx - breadth // 2] is True
-                ):
-                    cmplx_m = mm.fetch_m(
-                        measure_type=m_type.cmplx_hadamard, op_pos=op_pos
-                    )
-                    real_m = mm.fetch_m(
-                        measure_type=m_type.real_hadamard, op_pos=op_pos
-                    )
+    
+    # do identity measurement to seed
+    id_m = mm.add_m(m_type.identity, 0)
+    counts = find_nonzero_positions(id_m)
 
-                    target_arr[idx] = infer_target(
-                        target_idx=idx,
-                        source_idx=idx - breadth // 2,
-                        source_val=target_arr[idx - breadth // 2],
-                        n_qubits=fast_log2(target_arr.shape[0]),
-                        h_measure=real_m,
-                        v_measure=cmplx_m,
-                        op_pos=op_pos,
-                    )
-                    counts[idx] = True
+    target_arr[counts[0]][0] = sqrt(id_m[0])
+    t_list = set(counts)
+    t_list.remove(counts[0])
+    
+    counts = set(counts)
+    
+    for op in range(mm.n_qubits):
+        to_rem = set()
+        for target in t_list:
+            if target & (1 << (mm.n_qubits - op - 1)):
+                for source in [target - fast_pow(2, mm.n_qubits - op - 1), target + fast_pow(2, mm.n_qubits - op - 1)]:
+                    if source in counts and source not in t_list:
+                        cmplx_m = mm.fetch_m(
+                            measure_type=m_type.cmplx_hadamard, op_pos=op
+                        )
+                        real_m = mm.fetch_m(
+                            measure_type=m_type.real_hadamard, op_pos=op
+                        )
 
+                        target_arr[target] = infer_target(
+                            target_idx=target,
+                            source_idx=source,
+                            source_val=target_arr[source],
+                            n_qubits=fast_log2(target_arr.shape[0]),
+                            h_measure=real_m,
+                            v_measure=cmplx_m,
+                            op_pos=op,
+                        )
+                        to_rem.add(target)
             else:
-                if (
-                    idx + breadth // 2 in counts
-                    and counts[idx + breadth // 2] is True
-                ):
+                if target + fast_pow(2, mm.n_qubits - op - 1) in counts and target + fast_pow(2, mm.n_qubits - op - 1) not in t_list:
+                    
                     cmplx_m = mm.fetch_m(
-                        measure_type=m_type.cmplx_hadamard, op_pos=op_pos
+                        measure_type=m_type.cmplx_hadamard, op_pos=op
                     )
                     real_m = mm.fetch_m(
-                        measure_type=m_type.real_hadamard, op_pos=op_pos
+                        measure_type=m_type.real_hadamard, op_pos=op
                     )
 
-                    target_arr[idx] = infer_target(
-                        target_idx=idx,
-                        source_idx=idx + breadth // 2,
-                        source_val=target_arr[idx + breadth // 2],
+                    target_arr[target] = infer_target(
+                        target_idx=target,
+                        source_idx=target + fast_pow(2, mm.n_qubits - op - 1),
+                        source_val=target_arr[target + fast_pow(2, mm.n_qubits - op - 1)],
                         n_qubits=fast_log2(target_arr.shape[0]),
                         h_measure=real_m,
                         v_measure=cmplx_m,
-                        op_pos=op_pos,
+                        op_pos=op,
                     )
-                    counts[idx] = True
-
-    # recur
-    if breadth > 2:
-        __rec_tomography_helper(
-            target_arr=target_arr,
-            start_pos=start_pos,
-            breadth=breadth // 2,
-            counts=counts,
-            mm=mm,
-        )
-        __rec_tomography_helper(
-            target_arr=target_arr,
-            start_pos=start_pos + breadth // 2,
-            breadth=breadth // 2,
-            counts=counts,
-            mm=mm,
-        )
-
+                    to_rem.add(target)
+            
+            t_list = t_list - to_rem
+            
+            if len(t_list) == 0:
+                return
+    
 
 if __name__ == "__main__":
     print(" Done!")
