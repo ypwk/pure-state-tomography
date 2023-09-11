@@ -2,7 +2,8 @@
 
 print("Initializing . . .", end="", flush=True)
 
-from numpy import ndarray, array, sqrt, asarray, zeros
+from numpy import ndarray, array, sqrt, asarray, zeros, linalg
+import numpy.random as nprandom
 
 from qiskit import QuantumCircuit, transpile, result, assemble
 from qiskit import Aer, execute
@@ -137,7 +138,6 @@ def run_circuit(qc, shots=1024) -> result.counts.Counts:
     """
     aer_sim = Aer.get_backend("aer_simulator")
     t_qc = transpile(qc, aer_sim)
-    qobj = assemble(t_qc, shots=shots)
     result = aer_sim.run(t_qc, shots=shots).result()
     counts = result.get_counts(qc)
     return counts
@@ -162,10 +162,12 @@ def find_nonzero_positions(counts, epsilon=1e-5) -> list:
 class meas_manager:
     # TODO: Implement main memory friendly version for applications at exponential scale.
 
-    def __init__(self, m_state, n_qubits) -> None:
+    def __init__(self, m_state, n_qubits, n_shots, use_statevector) -> None:
         self.n_qubits = n_qubits
         self.m_state = m_state
         self.num_measurements = 0
+        self.n_shots = n_shots
+        self.use_statevector = use_statevector
         self.__measurements = {
             m_type.identity: [None for _ in range(n_qubits)],
             m_type.cmplx_hadamard: [None for _ in range(n_qubits)],
@@ -178,7 +180,7 @@ class meas_manager:
 
         Args:
             measure_type (m_type): The type of operator used in the tensor structure
-            cnots (list): The list of locations to apply the CNOT operation
+            cnots (list): The position of CNOT measurements in circuit
             op_pos (int, optional): The operation of the position of the operator
                     Defaults to 0, since it is unused when the operator is the identity
         """
@@ -193,7 +195,9 @@ class meas_manager:
         state_circuit = self.m_state.copy("execute")
         for a in range(self.m_state.num_qubits):
             if self.m_state.num_qubits - a - 1 in cnots:
-                state_circuit.cnot(self.m_state.num_qubits - a - 1, self.m_state.num_qubits - a - 2)
+                state_circuit.cnot(
+                    self.m_state.num_qubits - a - 1, self.m_state.num_qubits - a - 2
+                )
         for a in range(self.m_state.num_qubits):
             if a == self.m_state.num_qubits - op_pos - 1:
                 if measure_type == m_type.real_hadamard:
@@ -211,20 +215,23 @@ class meas_manager:
             else:
                 state_circuit.i(a)
 
-        # SHOTS = 2048
-        # raw_result = run_circuit(circ_to_ex, SHOTS)
-
-        # using statevector for precise execution
-        simulator = Aer.get_backend("statevector_simulator")
-        raw_result = execute(state_circuit, simulator).result()
-        statevector = asarray(raw_result.get_statevector(state_circuit))
-
-        res = zeros(fast_pow(2, self.m_state.num_qubits))
-        for idx in range(len(statevector)):
-            res[idx] = abs(
-                statevector[idx].real * statevector[idx].real
-                - statevector[idx].imag * statevector[idx].imag
-            )
+        if self.use_statevector:
+            # using statevector for precise execution
+            simulator = Aer.get_backend("statevector_simulator")
+            raw_result = execute(state_circuit, simulator).result()
+            statevector = asarray(raw_result.get_statevector(state_circuit))
+            res = zeros(fast_pow(2, self.m_state.num_qubits))
+            for idx in range(len(statevector)):
+                res[idx] = abs(
+                    statevector[idx].real * statevector[idx].real
+                    - statevector[idx].imag * statevector[idx].imag
+                )
+        else:
+            state_circuit.measure_all()
+            raw_result = run_circuit(state_circuit, shots=self.n_shots)
+            res = zeros(fast_pow(2, self.m_state.num_qubits))
+            for key in raw_result.keys():
+                res[int(key, 2)] = raw_result[key] / self.n_shots
 
         self.num_measurements += 1
         self.__measurements[measure_type][op_pos] = res
@@ -265,20 +272,23 @@ class meas_manager:
             else:
                 state_circuit.i(a)
 
-        # SHOTS = 2048
-        # raw_result = run_circuit(circ_to_ex, SHOTS)
-
-        # using statevector for precise execution
-        simulator = Aer.get_backend("statevector_simulator")
-        raw_result = execute(state_circuit, simulator).result()
-        statevector = asarray(raw_result.get_statevector(state_circuit))
-
-        res = zeros(fast_pow(2, self.m_state.num_qubits))
-        for idx in range(len(statevector)):
-            res[idx] = abs(
-                statevector[idx].real * statevector[idx].real
-                - statevector[idx].imag * statevector[idx].imag
-            )
+        if self.use_statevector:
+            # using statevector for precise execution
+            simulator = Aer.get_backend("statevector_simulator")
+            raw_result = execute(state_circuit, simulator).result()
+            statevector = asarray(raw_result.get_statevector(state_circuit))
+            res = zeros(fast_pow(2, self.m_state.num_qubits))
+            for idx in range(len(statevector)):
+                res[idx] = abs(
+                    statevector[idx].real * statevector[idx].real
+                    - statevector[idx].imag * statevector[idx].imag
+                )
+        else:
+            state_circuit.measure_all()
+            raw_result = run_circuit(state_circuit, shots=self.n_shots)
+            res = zeros(fast_pow(2, self.m_state.num_qubits))
+            for key in raw_result.keys():
+                res[int(key, 2)] = raw_result[key] / self.n_shots
 
         self.num_measurements += 1
         self.__measurements[measure_type][op_pos] = res
@@ -332,27 +342,29 @@ class meas_manager:
         )
 
 
-def pure_state_tomography(input_state=None, n_qubits=2):
+def pure_state_tomography(input_state=None, n_qubits=2, precise=False, n_shots=8192):
     """Uses the pure state tomography algorithm to infer the state of a hidden input_vector
 
     Args:
         input_state (numpy.ndarray, optional): The hidden input_vector to infer.
         n_qubits (int, optional): The number of qubits needed to represent the input_vector. Defaults to 2.
+        precise (bool): Whether or not to use precise measurements on Qiskit
+        n_shots (int): The number of shots to use for imprecise measurements on Qiskit. Only comes into effect when precise is False. 
     """
 
     DIM = fast_pow(2, n_qubits)
     if input_state is None:  # generate random input vector if it is None
-        # input_state = array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)])
-        # input_state = array([1/2, -1/sqrt(2), 1/sqrt(6), 1/sqrt(12)])
-        # input_state = array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)])
-        input_state = array([1 / 2, 0, 0, -3 / sqrt(12)])
-
+        input_state = nprandom.rand(DIM) + 1j * nprandom.rand(DIM)
+        input_state = input_state / linalg.norm(input_state)
+        
     print("Input vector: {}".format(input_state), flush=True)
 
     mystery_state = create_circuit(input_state, n_qubits)
 
     # do initial identity measurement
-    mm = meas_manager(m_state=mystery_state, n_qubits=n_qubits)
+    mm = meas_manager(
+        m_state=mystery_state, n_qubits=n_qubits, n_shots=n_shots, use_statevector=precise
+    )
 
     res = zeros((DIM, 2))
     __iter_inf_helper(res, mm)
@@ -387,26 +399,23 @@ def __iter_inf_helper(
         to_rem = set()
         for target in t_list:
             if target & (1 << (mm.n_qubits - op - 1)):
-                for source in [
-                    target - fast_pow(2, mm.n_qubits - op - 1),
-                    target + fast_pow(2, mm.n_qubits - op - 1),
-                ]:
-                    if source in counts and source not in t_list:
-                        cmplx_m = mm.fetch_m(
-                            measure_type=m_type.cmplx_hadamard, op_pos=op
-                        )
-                        real_m = mm.fetch_m(
-                            measure_type=m_type.real_hadamard, op_pos=op
-                        )
+                if (
+                    target - fast_pow(2, mm.n_qubits - op - 1) in counts
+                    and target - fast_pow(2, mm.n_qubits - op - 1) not in t_list
+                ):
+                    cmplx_m = mm.fetch_m(measure_type=m_type.cmplx_hadamard, op_pos=op)
+                    real_m = mm.fetch_m(measure_type=m_type.real_hadamard, op_pos=op)
 
-                        target_arr[target] = infer_target(
-                            target_idx=target,
-                            source_idx=source,
-                            source_val=target_arr[source],
-                            h_measure=real_m,
-                            v_measure=cmplx_m,
-                        )
-                        to_rem.add(target)
+                    target_arr[target] = infer_target(
+                        target_idx=target,
+                        source_idx=target - fast_pow(2, mm.n_qubits - op - 1),
+                        source_val=target_arr[
+                            target - fast_pow(2, mm.n_qubits - op - 1)
+                        ],
+                        h_measure=real_m,
+                        v_measure=cmplx_m,
+                    )
+                    to_rem.add(target)
             else:
                 if (
                     target + fast_pow(2, mm.n_qubits - op - 1) in counts
@@ -457,10 +466,10 @@ def __iter_inf_helper(
 
         real_m = mm.fetch_cm(m_type.real_hadamard, cnots, op_pos)
         cmplx_m = mm.fetch_cm(m_type.cmplx_hadamard, cnots, op_pos)
-        
+
         # infer target
         target_arr[n] = infer_target(
-            target_idx=n ^ (1 << op_pos), # bit shift to ensure correct structure
+            target_idx=n ^ (1 << op_pos),  # bit shift to ensure correct structure
             source_idx=source,
             source_val=target_arr[source],
             h_measure=real_m,
@@ -470,9 +479,22 @@ def __iter_inf_helper(
 
 if __name__ == "__main__":
     print(" Done!")
-    r = pure_state_tomography(n_qubits=2)
-    print("Reconstructed vector:")
-    print(r)
+    initial_states = [
+        array([1/2, 1/sqrt(2), 1/sqrt(6), 1/sqrt(12)]),
+        array([1/2, -1/sqrt(2), 1/sqrt(6), 1/sqrt(12)]), 
+        array([1/2, 0, -2/sqrt(6), 1/sqrt(12)]),
+        array([1/2, 0, 0, -3/sqrt(12)]),
+    ]
+    
+    print()
+    SHOTS = fast_pow(2, 14)
+    print("Running inference at {} shots\n".format(SHOTS))
+    
+    for state in initial_states:
+        r = pure_state_tomography(input_state=state, n_qubits=2, precise=False, n_shots=SHOTS)
+        print("Reconstructed vector:")
+        print(r)
+        print("% Error: {}\n".format(100 * linalg.norm(state - r)))
 
 __author__ = "Kevin Wu and Shuhong Wang"
 __credits__ = ["Kevin Wu", "Shuhong Wang"]
