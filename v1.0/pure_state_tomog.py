@@ -6,6 +6,7 @@ from numpy import ndarray, array, sqrt, asarray, zeros, linalg
 import numpy.random as nprandom
 
 from qiskit import QuantumCircuit, transpile, result, assemble
+from qiskit_ibm_runtime import QiskitRuntimeService
 from qiskit import Aer, execute
 
 import networkx as nx
@@ -122,24 +123,28 @@ def create_circuit(state, n_qubits) -> QuantumCircuit:
         qiskit.QuantumCircuit:
     """
     qc = QuantumCircuit(n_qubits)
-    qc.initialize(state, [0, 1])
+    qc.initialize(state, [_ for _ in range(n_qubits)])
     return qc
 
 
-def run_circuit(qc, shots=1024) -> result.counts.Counts:
+def run_circuit(qc, simulator, shots=1024) -> result.counts.Counts:
     """Runs the circuit on the simulator
 
     Args:
         qc (qiskit.QuantumCircuit): Quantum circuit to run
+        simulator (bool): Whether or not to use a simulator
         shots (int): Number of shots to take
 
     Returns:
         numpy.ndarray: An array of result counts
     """
-    aer_sim = Aer.get_backend("aer_simulator")
-    t_qc = transpile(qc, aer_sim)
-    result = aer_sim.run(t_qc, shots=shots).result()
-    counts = result.get_counts(qc)
+    if simulator:
+        aer_sim = Aer.get_backend("aer_simulator")
+        t_qc = transpile(qc, aer_sim)
+        result = aer_sim.run(t_qc, shots=shots).result()
+        counts = result.get_counts(qc)
+    else:
+        counts = zeros([0, 0, 0, 0])
     return counts
 
 
@@ -161,19 +166,23 @@ def find_nonzero_positions(counts, epsilon=1e-5) -> list:
 
 class meas_manager:
     # TODO: Implement main memory friendly version for applications at exponential scale.
-
-    def __init__(self, m_state, n_qubits, n_shots, use_statevector) -> None:
+    
+    def __init__(self, m_state, n_qubits, n_shots, simulator, use_statevector, verbose) -> None:
         self.n_qubits = n_qubits
         self.m_state = m_state
         self.num_measurements = 0
         self.n_shots = n_shots
+        self.simulator = simulator
         self.use_statevector = use_statevector
         self.__measurements = {
             m_type.identity: [None for _ in range(n_qubits)],
             m_type.cmplx_hadamard: [None for _ in range(n_qubits)],
             m_type.real_hadamard: [None for _ in range(n_qubits)],
         }
-        pass
+        self.verbose = verbose
+        
+        if not self.simulator:
+            self.service = QiskitRuntimeService()
 
     def add_cm(self, measure_type, cnots, op_pos=0) -> ndarray:
         """Carries out a measurement on the pure state accounting for CNOT operations, returning the correct value.
@@ -215,23 +224,7 @@ class meas_manager:
             else:
                 state_circuit.i(a)
 
-        if self.use_statevector:
-            # using statevector for precise execution
-            simulator = Aer.get_backend("statevector_simulator")
-            raw_result = execute(state_circuit, simulator).result()
-            statevector = asarray(raw_result.get_statevector(state_circuit))
-            res = zeros(fast_pow(2, self.m_state.num_qubits))
-            for idx in range(len(statevector)):
-                res[idx] = abs(
-                    statevector[idx].real * statevector[idx].real
-                    - statevector[idx].imag * statevector[idx].imag
-                )
-        else:
-            state_circuit.measure_all()
-            raw_result = run_circuit(state_circuit, shots=self.n_shots)
-            res = zeros(fast_pow(2, self.m_state.num_qubits))
-            for key in raw_result.keys():
-                res[int(key, 2)] = raw_result[key] / self.n_shots
+        res = self.measure_state(state_circuit)
 
         self.num_measurements += 1
         self.__measurements[measure_type][op_pos] = res
@@ -272,23 +265,7 @@ class meas_manager:
             else:
                 state_circuit.i(a)
 
-        if self.use_statevector:
-            # using statevector for precise execution
-            simulator = Aer.get_backend("statevector_simulator")
-            raw_result = execute(state_circuit, simulator).result()
-            statevector = asarray(raw_result.get_statevector(state_circuit))
-            res = zeros(fast_pow(2, self.m_state.num_qubits))
-            for idx in range(len(statevector)):
-                res[idx] = abs(
-                    statevector[idx].real * statevector[idx].real
-                    - statevector[idx].imag * statevector[idx].imag
-                )
-        else:
-            state_circuit.measure_all()
-            raw_result = run_circuit(state_circuit, shots=self.n_shots)
-            res = zeros(fast_pow(2, self.m_state.num_qubits))
-            for key in raw_result.keys():
-                res[int(key, 2)] = raw_result[key] / self.n_shots
+        res = self.measure_state(state_circuit)
 
         self.num_measurements += 1
         self.__measurements[measure_type][op_pos] = res
@@ -340,16 +317,50 @@ class meas_manager:
             if self.__measurements[measure_type][op_pos] is None
             else self.__measurements[measure_type][op_pos]
         )
+    
+    def measure_state(self, circuit):
+        """Measures a circuit using prior settings
+
+        Args:
+            circuit (qiskit.QuantumCircuit): The circuit to measure
+            
+        Returns:
+            measurement_result (numpy.ndarray):
+        """
+        res = zeros(fast_pow(2, self.m_state.num_qubits))
+        
+        if self.simulator:
+            if self.use_statevector:
+                # using statevector for precise execution
+                simulator = Aer.get_backend("statevector_simulator")
+                raw_result = execute(circuit, simulator).result()
+                statevector = asarray(raw_result.get_statevector(circuit))
+                for idx in range(len(statevector)):
+                    res[idx] = abs(
+                        statevector[idx].real * statevector[idx].real
+                        - statevector[idx].imag * statevector[idx].imag
+                    )
+            else:
+                circuit.measure_all()
+                raw_result = run_circuit(circuit, self.simulator, shots=self.n_shots)
+                for key in raw_result.keys():
+                    res[int(key, 2)] = raw_result[key] / self.n_shots
+        else: 
+            service.backends(simulator=False, operational=True, min_num_qubits=5) #TODO set up simulator
+                
+        return res
 
 
-def pure_state_tomography(input_state=None, n_qubits=2, precise=False, n_shots=8192):
+def pure_state_tomography(input_state=None, n_qubits=2, precise=False, simulator=True, n_shots=8192, verbose=False):
     """Uses the pure state tomography algorithm to infer the state of a hidden input_vector
 
     Args:
         input_state (numpy.ndarray, optional): The hidden input_vector to infer.
         n_qubits (int, optional): The number of qubits needed to represent the input_vector. Defaults to 2.
         precise (bool): Whether or not to use precise measurements on Qiskit
+        simulator (bool): Whether or not to use Qiskit simulator or IBM quantum machine
         n_shots (int): The number of shots to use for imprecise measurements on Qiskit. Only comes into effect when precise is False. 
+        verbose (bool): Whether to print detailed information
     """
 
     DIM = fast_pow(2, n_qubits)
@@ -363,7 +374,7 @@ def pure_state_tomography(input_state=None, n_qubits=2, precise=False, n_shots=8
 
     # do initial identity measurement
     mm = meas_manager(
-        m_state=mystery_state, n_qubits=n_qubits, n_shots=n_shots, use_statevector=precise
+        m_state=mystery_state, n_qubits=n_qubits, n_shots=n_shots, simulator=simulator, use_statevector=precise, verbose=verbose
     )
 
     res = zeros((DIM, 2))
@@ -484,6 +495,8 @@ if __name__ == "__main__":
         array([1/2, -1/sqrt(2), 1/sqrt(6), 1/sqrt(12)]), 
         array([1/2, 0, -2/sqrt(6), 1/sqrt(12)]),
         array([1/2, 0, 0, -3/sqrt(12)]),
+        array([1/sqrt(2), -1/sqrt(2), 0, 0, 0, 0, 0, 0]),
+        array([1/sqrt(6), 1/sqrt(6), -2/sqrt(6), 0, 0, 0, 0, 0])
     ]
     
     print()
@@ -491,7 +504,7 @@ if __name__ == "__main__":
     print("Running inference at {} shots\n".format(SHOTS))
     
     for state in initial_states:
-        r = pure_state_tomography(input_state=state, n_qubits=2, precise=False, n_shots=SHOTS)
+        r = pure_state_tomography(input_state=state, n_qubits=fast_log2(len(state)), precise=False, simulator=True, n_shots=SHOTS, verbose=True)
         print("Reconstructed vector:")
         print(r)
         print("% Error: {}\n".format(100 * linalg.norm(state - r)))
