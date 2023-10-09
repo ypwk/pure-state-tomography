@@ -10,6 +10,8 @@ Functions:
 See each function's respective docstring for detailed usage and parameter information.
 """
 
+from datetime import datetime as dt
+
 
 def fast_pow(base, exp) -> int:
     """Fast exponent using squaring
@@ -64,7 +66,10 @@ def hamming(i1: int, i2: int) -> int:
     return ones
 
 
-def fprint(*args, filename="output.txt", mode="a", **kwargs):
+FILENAME = "out_{}.txt".format(dt.now().strftime("%Y_%m_%dT_%H_%M_%S"))
+
+
+def fprint(*args, filename=FILENAME, mode="a", **kwargs):
     """
     Wrapper for the print function that prints to console and writes to a file simultaneously.
 

@@ -13,12 +13,14 @@ Classes and Functions:
 See each function's respective docstring for detailed usage and parameter information.
 """
 
-
 from numpy import ndarray, sqrt, asarray, zeros
+
+from datetime import datetime as dt
 
 from qiskit import transpile
 from qiskit import Aer, execute
 from qiskit_ibm_provider import IBMProvider
+from qiskit_ibm_runtime import QiskitRuntimeService
 
 import configparser
 import putils
@@ -42,6 +44,11 @@ class meas_manager:
             qutils.m_type.cmplx_hadamard: [None for _ in range(n_qubits)],
             qutils.m_type.real_hadamard: [None for _ in range(n_qubits)],
         }
+        self.__c_measurements = {
+            qutils.m_type.identity: [],
+            qutils.m_type.cmplx_hadamard: [],
+            qutils.m_type.real_hadamard: [],
+        }
         self.verbose = verbose
 
         if not self.simulator:
@@ -54,6 +61,67 @@ class meas_manager:
 
             provider = IBMProvider(token=api_token)
             self.device = provider.get_backend("ibm_lagos")
+
+    def to_job_file(self) -> None:
+        """Requests for measurements and records job IDs in a job file."""
+        fn = "job_{}.txt".format(dt.now().strftime("%Y_%m_%dT_%H_%M_%S"))
+        putils.fprint("Corresponding job file:", fn, flush=True)
+        with open(
+            fn, mode="w"
+        ) as f:
+            for type in qutils.m_type:
+                for op_pos in range(len(self.__measurements[type])):
+                    if self.__measurements[type][op_pos] is not None:
+                        for cnots in self.__measurements[type][op_pos]:
+                            job_id = self.add_cm(type, list(cnots), op_pos)
+                            f.write(
+                                "{}:{}:{}:{}\n".format(
+                                    job_id,
+                                    type,
+                                    op_pos,
+                                    ",".join(str(_) for _ in cnots),
+                                )
+                            )
+
+    def consume_job_file(self, fname) -> bool:
+        """Consumes job file, fetching and refactoring measurement results.
+
+        Args:
+            fname (str): Name of job file.
+        Returns:
+            res (bool): Whether or not to do a dry run or an actual run for inference.
+        """
+          
+        service = QiskitRuntimeService()
+        with open(fname) as f:
+            lines = f.readlines()
+            for line in lines:
+                data = line.strip().split(":")
+                job = service.job(job_id=data[0])
+   
+                print(job.result().data())
+
+                m = qutils.m_type.identity
+                if "real" in data[1]:
+                    m = qutils.m_type.real_hadamard
+                elif "cmplx" in data[1]:
+                    m = qutils.m_type.cmplx_hadamard
+
+                op_pos = int(data[2])
+
+                cnots = [int(i) if i != "" else None for i in list(data[3].split(","))]
+                if cnots[0] is None:
+                    res = zeros(putils.fast_pow(2, self.m_state.num_qubits))
+                    for key in job.result().keys():
+                        res[int(key, 2)] = job.result()[key] / self.n_shots
+                    self.__measurements[m][op_pos] = res
+                else:
+                    res = zeros(putils.fast_pow(2, self.m_state.num_qubits))
+                    for key in job.result().keys():
+                        res[int(key, 2)] = job.result()[key] / self.n_shots
+                    self.__c_measurements[m].append({"cnots": set(cnots), "data": res})
+
+        return m == qutils.m_type.identity and len(lines) == 1
 
     def add_cm(self, measure_type, cnots, op_pos=0) -> ndarray:
         """Carries out a measurement on the pure state accounting for CNOT operations, returning the correct value.
@@ -71,6 +139,9 @@ class meas_manager:
             qutils.m_type.identity,
         ]:
             raise ValueError("Measurement type {} not valid.", measure_type)
+
+        if len(cnots) == 0:
+            return self.add_m(measure_type, op_pos)
 
         state_circuit = self.m_state.copy("execute")
         for a in range(self.m_state.num_qubits):
@@ -98,7 +169,7 @@ class meas_manager:
         res = self.measure_state(state_circuit)
 
         self.num_measurements += 1
-        self.__measurements[measure_type][op_pos] = res
+        self.__c_measurements[measure_type].append({"cnots": set(cnots), "data": res})
 
         return res
 
@@ -156,17 +227,10 @@ class meas_manager:
         Returns:
             measurement_result (numpy.ndarray):
         """
-        if measure_type == qutils.m_type.identity:
-            return (
-                self.add_cm(measure_type=measure_type, cnots=cnots, op_pos=op_pos)
-                if self.__measurements[measure_type][0] is None
-                else self.__measurements[measure_type][0]
-            )
-        return (
-            self.add_cm(measure_type=measure_type, cnots=cnots, op_pos=op_pos)
-            if self.__measurements[measure_type][op_pos] is None
-            else self.__measurements[measure_type][op_pos]
-        )
+        for entry in self.__c_measurements[measure_type]:
+            if entry["cnots"] == set(cnots):
+                return entry["data"]
+        return self.add_cm(measure_type=measure_type, cnots=cnots, op_pos=op_pos)
 
     def fetch_m(self, measure_type, op_pos) -> ndarray:
         """Fetches a measurement result, denoted by location of and whether the Hadamard/alternate operator has been
@@ -191,11 +255,28 @@ class meas_manager:
             else self.__measurements[measure_type][op_pos]
         )
 
+    def dummy_measurement(self, measure_type, op_pos, cnots=[]) -> None:
+        """Stores that a measurement is necessary for this specific configuration.
+
+        Args:
+            measure_type (qutils.m_type): The type of operator used in the tensor structure
+            cnots (list): The position of CNOTs in the tensor structure
+            op_pos (int): The position of the Hadamard in the tensor product, zero indexed from the left.
+        """
+        cnots = set(cnots)
+        if self.__measurements[measure_type][op_pos] is not None:
+            for m in self.__measurements[measure_type][op_pos]:
+                if m == cnots:
+                    return
+        else:
+            self.__measurements[measure_type][op_pos] = []
+        self.__measurements[measure_type][op_pos].append(cnots)
+
     def measure_state(self, circuit):
         """Measures a circuit using prior settings
 
         Args:
-            circuit (qiskit.QuantumCircuit): The circuit to measure
+            circuit (qiskit.QuantumCircuit): The circuit to measure.
 
         Returns:
             measurement_result (numpy.ndarray):
@@ -215,16 +296,17 @@ class meas_manager:
                     )
             else:
                 circuit.measure_all()
-                raw_result = qutils.run_circuit(circuit, self.simulator, shots=self.n_shots)
+                raw_result = qutils.run_circuit(
+                    circuit, self.simulator, shots=self.n_shots
+                )
                 for key in raw_result.keys():
                     res[int(key, 2)] = raw_result[key] / self.n_shots
         else:
+            circuit.measure_all()
             transpiled_circuit = transpile(circuit, self.device)
-            job = execute(transpiled_circuit, backend=self.device, shots=self.n_shots)
-            print(job.job_id())
-            for key in job.result().get_counts():
-                res[int(key, 2)] = raw_result[key] / self.n_shots
-
+            res = execute(
+                transpiled_circuit, backend=self.device, shots=self.n_shots
+            ).job_id()
         return res
 
 
