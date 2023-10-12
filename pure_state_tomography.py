@@ -63,8 +63,9 @@ class tomography:
                 mm.dummy_measurement(qutils.m_type.identity, 0)
                 mm.to_job_file()
             else:
-                if mm.consume_job_file(job_file):
-                    self.__dry_iter_inf_helper(res, mm)
+                measurement_count = mm.consume_job_file(job_file)
+                self.__dry_iter_inf_helper(res, mm)
+                if len(mm) > measurement_count:
                     mm.to_job_file()
                 else:
                     self.__iter_inf_helper(res, mm)
@@ -90,7 +91,7 @@ class tomography:
         """
 
         # do identity measurement to seed
-        id_m = mm.add_m(qutils.m_type.identity, 0)
+        id_m = mm.fetch_m(qutils.m_type.identity, 0)
         counts = qutils.find_nonzero_positions(id_m)
 
         target_arr[counts[0]][0] = sqrt(id_m[0])
@@ -209,7 +210,7 @@ class tomography:
             mm (meas_manager): Measure manager keeping track of measurement values.
         """
 
-        id_m = mm.add_m(qutils.m_type.identity, 0)
+        id_m = mm.fetch_m(qutils.m_type.identity, 0)
         counts = qutils.find_nonzero_positions(id_m)
 
         target_arr[counts[0]][0] = sqrt(id_m[0])
@@ -251,6 +252,7 @@ class tomography:
                 t_list = t_list - to_rem
 
                 if len(t_list) == 0:
+                    mm.session.close()
                     return
 
         # use MST to deal with infeasible ones
@@ -284,13 +286,15 @@ class tomography:
             mm.dummy_measurement(qutils.m_type.real_hadamard, cnots, op_pos)
             mm.dummy_measurement(qutils.m_type.cmplx_hadamard, cnots, op_pos)
 
+        mm.session.close()
+
 
 if __name__ == "__main__":
     initial_states = [
         array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
-        array([1 / 2, -1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
-        array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)]),
-        array([1 / 2, 0, 0, -3 / sqrt(12)]),
+        # array([1 / 2, -1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
+        # array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)]),
+        # array([1 / 2, 0, 0, -3 / sqrt(12)]),
         # array([1 / sqrt(2), -1 / sqrt(2), 0, 0, 0, 0, 0, 0]),
         # array([1 / sqrt(6), 1 / sqrt(6), -2 / sqrt(6), 0, 0, 0, 0, 0]),
     ]
@@ -308,12 +312,11 @@ if __name__ == "__main__":
             simulator=False,
             n_shots=SHOTS,
             verbose=True,
-            # job_file="job_2023_10_04T_21_56_21.txt"
+            job_file="job_2023_10_09T_11_26_09.txt"
         )
 
         putils.fprint("Reconstructed vector:\n{}".format(res))
         putils.fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
-
 
 __author__ = "Kevin Wu"
 __credits__ = ["Kevin Wu", "Shuhong Wang"]

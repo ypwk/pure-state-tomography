@@ -15,5 +15,5 @@ with open("config.ini", "r") as cf:
     cp = configparser.ConfigParser()
     cp.read_file(cf)
     api_token = cp.get("IBM", "token")
-QiskitRuntimeService.save_account(channel="ibm_quantum", token=api_token)
+QiskitRuntimeService.save_account(channel="ibm_quantum", token=api_token, overwrite=True)
 ```
