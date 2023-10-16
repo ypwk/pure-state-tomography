@@ -39,6 +39,7 @@ class meas_manager:
         self.n_shots = n_shots
         self.simulator = simulator
         self.use_statevector = use_statevector
+        self.my_job_file = None
         self.__measurements = {
             qutils.m_type.identity: [None for _ in range(n_qubits)],
             qutils.m_type.cmplx_hadamard: [None for _ in range(n_qubits)],
@@ -74,29 +75,29 @@ class meas_manager:
         with open(
             self.my_job_file, mode="a"
         ) as f:
-            for type in qutils.m_type:
-                for op_pos in range(len(self.__measurements[type])):
-                    if self.__measurements[type][op_pos] == 1:
+            for t in qutils.m_type:
+                for op_pos in range(len(self.__measurements[t])):
+                    if type(self.__measurements[t][op_pos]) is int:
                         measurements += 1
-                        job_id = self.add_m(type, op_pos)
+                        job_id = self.add_m(t, op_pos)
                         f.write(
                             "{}:{}:{}:{}\n".format(
                                 job_id,
-                                type,
+                                t,
                                 op_pos,
                                 ",".join(str(_) for _ in []),
                             )
                         )
                         if measurements == 3:
                             return
-                for cm in range(len(self.__c_measurements[type])):
-                    if self.__c_measurements[type][cm]["data"] == 1:
+                for cm in range(len(self.__c_measurements[t])):
+                    if type(self.__c_measurements[t][cm]["data"]) is int:
                         measurements += 1
-                        job_id = self.add_cm(type, self.__c_measurements[type][cm]["cnots"], op_pos)
+                        job_id = self.add_cm(t, self.__c_measurements[t][cm]["cnots"], op_pos)
                         f.write(
                             "{}:{}:{}:{}\n".format(
                                 job_id,
-                                type,
+                                t,
                                 op_pos,
                                 ",".join(str(_) for _ in self.__c_measurements[type][cm]["cnots"]),
                             )

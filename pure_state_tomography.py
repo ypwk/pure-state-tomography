@@ -68,6 +68,7 @@ class tomography:
                 if len(mm) > measurement_count:
                     mm.to_job_file()
                 else:
+                    res = zeros((DIM, 2))
                     self.__iter_inf_helper(res, mm)
 
         putils.fprint(
@@ -291,12 +292,16 @@ class tomography:
 
 if __name__ == "__main__":
     initial_states = [
-        array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
+        # array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
         # array([1 / 2, -1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
         # array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)]),
-        # array([1 / 2, 0, 0, -3 / sqrt(12)]),
-        # array([1 / sqrt(2), -1 / sqrt(2), 0, 0, 0, 0, 0, 0]),
-        # array([1 / sqrt(6), 1 / sqrt(6), -2 / sqrt(6), 0, 0, 0, 0, 0]),
+        array([1 / 2, 0, 0, -3 / sqrt(12)]),
+    ]
+    job_names = [
+        # "job_2023_10_09T_11_26_09.txt",
+        # "job_2023_10_09T_11_26_17.txt",
+        # "job_2023_10_09T_11_26_25.txt",
+        "job_2023_10_15T_15_45_57.txt",
     ]
 
     SHOTS = putils.fast_pow(2, 10)
@@ -304,19 +309,19 @@ if __name__ == "__main__":
 
     talg = tomography()
 
-    for state in initial_states:
+    for state in range(len(initial_states)):
         res = talg.pure_state_tomography(
-            input_state=state,
-            n_qubits=putils.fast_log2(len(state)),
-            precise=True,
+            input_state=initial_states[state],
+            n_qubits=putils.fast_log2(len(initial_states[state])),
+            precise=False,
             simulator=False,
             n_shots=SHOTS,
             verbose=True,
-            job_file="job_2023_10_09T_11_26_09.txt"
+            job_file=job_names[state] if state < len(job_names) else None
         )
 
         putils.fprint("Reconstructed vector:\n{}".format(res))
-        putils.fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
+        putils.fprint("% Error: {}\n".format(100 * linalg.norm(initial_states[state] - res)))
 
 __author__ = "Kevin Wu"
 __credits__ = ["Kevin Wu", "Shuhong Wang"]
