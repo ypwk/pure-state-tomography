@@ -17,7 +17,7 @@ See each function's respective docstring for detailed usage and parameter inform
 from numpy import ndarray, array, zeros
 
 from qiskit import QuantumCircuit, transpile, result
-from qiskit import Aer
+from qiskit_aer import AerSimulator
 
 from enum import Enum
 
@@ -28,7 +28,7 @@ class m_type(Enum):
     identity = 3
 
 
-def find_nonzero_positions(counts, epsilon=1e-5) -> list:
+def find_nonzero_positions(counts, epsilon=5e-2) -> list:
     """Finds positions with nonzero counts in the counts array
 
     Args:
@@ -98,19 +98,20 @@ def create_circuit(state, n_qubits) -> QuantumCircuit:
     return qc
 
 
-def run_circuit(qc, simulator, shots=1024) -> result.counts.Counts:
+def run_circuit(qc, simulator, shots=1024, backend=None) -> result.counts.Counts:
     """Runs the circuit on the simulator
 
     Args:
         qc (qiskit.QuantumCircuit): Quantum circuit to run
         simulator (bool): Whether or not to use a simulator
         shots (int): Number of shots to take
+        backend: Backend device to mimic
 
     Returns:
         numpy.ndarray: An array of result counts
     """
     if simulator:
-        aer_sim = Aer.get_backend("aer_simulator")
+        aer_sim = AerSimulator.from_backend(backend)
         t_qc = transpile(qc, aer_sim)
         result = aer_sim.run(t_qc, shots=shots).result()
         counts = result.get_counts(qc)

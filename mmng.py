@@ -19,12 +19,15 @@ from datetime import datetime as dt
 
 from qiskit import transpile
 from qiskit import Aer, execute
+from qiskit_aer import AerSimulator
 from qiskit_ibm_provider import IBMProvider
 from qiskit_ibm_runtime import QiskitRuntimeService, Session
 
 import configparser
 import putils
 import qutils
+
+MAX_CONC_JOB_COUNT = 3
 
 
 class meas_manager:
@@ -52,29 +55,31 @@ class meas_manager:
         }
         self.verbose = verbose
 
-        if not self.simulator:
-            api_token = ""
-            with open("config.ini", "r") as cf:
-                cp = configparser.ConfigParser()
-                cp.read_file(cf)
-                api_token = cp.get("IBM", "token")
-            n_qubits = 2
+        api_token = ""
+        with open("config.ini", "r") as cf:
+            cp = configparser.ConfigParser()
+            cp.read_file(cf)
+            api_token = cp.get("IBM", "token")
+        n_qubits = 2
 
-            provider = IBMProvider(token=api_token)
-            self.device = provider.get_backend("ibm_lagos")
-            self.session = Session(backend=self.device)
+        provider = IBMProvider(token=api_token)
+        self.device = provider.get_backend("ibm_lagos")
+        self.session = Session(backend=self.device)
 
     def to_job_file(self) -> None:
         """Requests for measurements and records job IDs in a job file."""
         if self.my_job_file is None:
-            self.my_job_file = "job_{}.txt".format(dt.now().strftime("%Y_%m_%dT_%H_%M_%S"))
-            print("Warning: this program has not read from a job file yet, printing to", self.my_job_file)
+            self.my_job_file = "job_{}.txt".format(
+                dt.now().strftime("%Y_%m_%dT_%H_%M_%S")
+            )
+            print(
+                "Warning: this program has not read from a job file yet, printing to",
+                self.my_job_file,
+            )
             putils.fprint("Corresponding job file:", self.my_job_file, flush=True)
 
         measurements = 0
-        with open(
-            self.my_job_file, mode="a"
-        ) as f:
+        with open(self.my_job_file, mode="a") as f:
             for t in qutils.m_type:
                 for op_pos in range(len(self.__measurements[t])):
                     if type(self.__measurements[t][op_pos]) is int:
@@ -88,21 +93,28 @@ class meas_manager:
                                 ",".join(str(_) for _ in []),
                             )
                         )
-                        if measurements == 3:
+                        if measurements == MAX_CONC_JOB_COUNT:
                             return
                 for cm in range(len(self.__c_measurements[t])):
                     if type(self.__c_measurements[t][cm]["data"]) is int:
                         measurements += 1
-                        job_id = self.add_cm(t, self.__c_measurements[t][cm]["cnots"], op_pos)
+                        job_id = self.add_cm(
+                            t,
+                            self.__c_measurements[t][cm]["cnots"],
+                            self.__c_measurements[t][cm]["op_pos"],
+                        )
                         f.write(
                             "{}:{}:{}:{}\n".format(
                                 job_id,
                                 t,
-                                op_pos,
-                                ",".join(str(_) for _ in self.__c_measurements[type][cm]["cnots"]),
+                                self.__c_measurements[t][cm]["op_pos"],
+                                ",".join(
+                                    str(_)
+                                    for _ in self.__c_measurements[t][cm]["cnots"]
+                                ),
                             )
                         )
-                        if measurements == 3:
+                        if measurements == MAX_CONC_JOB_COUNT:
                             return
 
     def consume_job_file(self, fname) -> bool:
@@ -121,7 +133,7 @@ class meas_manager:
             for line in lines:
                 data = line.strip().split(":")
                 job = service.job(job_id=data[0])
-                run_data = job.result().data()['counts']
+                run_data = job.result().data()["counts"]
                 print(run_data)
 
                 m = qutils.m_type.identity
@@ -142,7 +154,9 @@ class meas_manager:
                     res = zeros(putils.fast_pow(2, self.m_state.num_qubits))
                     for key in run_data.keys():
                         res[int(key[2:])] = run_data[key] / self.n_shots
-                    self.__c_measurements[m].append({"cnots": set(cnots), "data": res})
+                    self.__c_measurements[m].append(
+                        {"cnots": set(cnots), "op_pos": op_pos, "data": res}
+                    )
 
         return len(lines)
 
@@ -192,7 +206,9 @@ class meas_manager:
         res = self.measure_state(state_circuit)
 
         self.num_measurements += 1
-        self.__c_measurements[measure_type].append({"cnots": set(cnots), "op_pos": op_pos, "data": res})
+        self.__c_measurements[measure_type].append(
+            {"cnots": set(cnots), "op_pos": op_pos, "data": res}
+        )
 
         return res
 
@@ -295,7 +311,9 @@ class meas_manager:
             for entry in self.__c_measurements[measure_type]:
                 if entry["cnots"] == set(cnots) and entry["op_pos"] == op_pos:
                     return
-            self.__c_measurements[measure_type].append({"cnots": set(cnots), "op_pos": op_pos, "data": 1})
+            self.__c_measurements[measure_type].append(
+                {"cnots": set(cnots), "op_pos": op_pos, "data": 1}
+            )
 
     def __len__(self) -> int:
         """Counts the number of measurements stored in the measurement manager.
@@ -304,7 +322,11 @@ class meas_manager:
             int: number of stored measurements
         """
         ret = 0
-        for m in [qutils.m_type.identity, qutils.m_type.cmplx_hadamard, qutils.m_type.real_hadamard]:
+        for m in [
+            qutils.m_type.identity,
+            qutils.m_type.cmplx_hadamard,
+            qutils.m_type.real_hadamard,
+        ]:
             for a in range(len(self.__measurements[m])):
                 if self.__measurements[m][a] is not None:
                     ret += 1
@@ -325,8 +347,9 @@ class meas_manager:
         if self.simulator:
             if self.use_statevector:
                 # using statevector for precise execution
-                simulator = Aer.get_backend("statevector_simulator")
-                raw_result = execute(circuit, simulator).result()
+                simulator = AerSimulator(method="statevector")
+                circuit.save_statevector()
+                raw_result = simulator.run(circuit).result()
                 statevector = asarray(raw_result.get_statevector(circuit))
                 for idx in range(len(statevector)):
                     res[idx] = abs(
@@ -334,9 +357,10 @@ class meas_manager:
                         - statevector[idx].imag * statevector[idx].imag
                     )
             else:
+                # Shot-based simulation using AerSimulator
                 circuit.measure_all()
                 raw_result = qutils.run_circuit(
-                    circuit, self.simulator, shots=self.n_shots
+                    circuit, self.simulator, shots=self.n_shots, backend=self.device
                 )
                 for key in raw_result.keys():
                     res[int(key, 2)] = raw_result[key] / self.n_shots
