@@ -12,6 +12,8 @@ See each function's respective docstring for detailed usage and parameter inform
 
 from datetime import datetime as dt
 
+import os
+
 
 def fast_pow(base, exp) -> int:
     """Fast exponent using squaring
@@ -66,7 +68,7 @@ def hamming(i1: int, i2: int) -> int:
     return ones
 
 
-FILENAME = "out_{}.txt".format(dt.now().strftime("%Y_%m_%dT_%H_%M_%S"))
+FILENAME = "log_{}.txt".format(dt.now().strftime("%Y_%m_%dT_%H_%M_%S"))
 
 
 def fprint(*args, filename=FILENAME, mode="a", **kwargs):
@@ -79,7 +81,12 @@ def fprint(*args, filename=FILENAME, mode="a", **kwargs):
         mode (str): File mode for writing (default is 'a' for append).
         **kwargs: Keyword arguments for the print function.
     """
-    with open(filename, mode) as file:
+    file_path = os.path.join("logs", filename)
+
+    if not os.path.isdir("logs"):
+        os.mkdir("logs")
+
+    with open(file_path, mode, encoding="utf-8") as file:
         print(*args, **kwargs)
         print(*args, file=file, **kwargs)
 

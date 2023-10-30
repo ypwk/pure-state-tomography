@@ -17,6 +17,7 @@ See each function's respective docstring for detailed usage and parameter inform
 from numpy import ndarray, array, zeros
 
 from qiskit import QuantumCircuit, transpile, result
+from qiskit.extensions import UnitaryGate
 from qiskit_aer import AerSimulator
 
 from enum import Enum
@@ -28,7 +29,7 @@ class m_type(Enum):
     identity = 3
 
 
-def find_nonzero_positions(counts, epsilon=5e-2) -> list:
+def find_nonzero_positions(counts, epsilon=5e-5) -> list:
     """Finds positions with nonzero counts in the counts array
 
     Args:
@@ -83,7 +84,7 @@ def infer_target(target_idx, source_idx, source_val, h_measure, v_measure) -> nd
     return res
 
 
-def create_circuit(state, n_qubits) -> QuantumCircuit:
+def create_vector_circuit(state, n_qubits) -> QuantumCircuit:
     """Initializes a state as a qiskit QuantumCircuit
 
     Args:
@@ -95,6 +96,25 @@ def create_circuit(state, n_qubits) -> QuantumCircuit:
     """
     qc = QuantumCircuit(n_qubits)
     qc.initialize(state, [_ for _ in range(n_qubits)])
+    return qc
+
+
+def create_matrix_circuit(state, n_qubits) -> QuantumCircuit:
+    """Initializes a state as a qiskit QuantumCircuit
+
+    Args:
+        state (numpy.ndarray): The state to initialize
+        n_qubits (int): The number of qubits used to represent the staet
+
+    Returns:
+        qiskit.QuantumCircuit:
+    """
+    qc = QuantumCircuit(n_qubits)
+    for a in range(n_qubits // 2):
+        qc.h(n_qubits // 2 + a)
+    for a in range(n_qubits // 2 - 1, -1, -1):
+        qc.cnot(n_qubits // 2 + a, a)
+    qc.append(UnitaryGate(state), range(n_qubits // 2))
     return qc
 
 

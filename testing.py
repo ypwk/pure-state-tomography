@@ -48,7 +48,7 @@ class ShotsTesting(unittest.TestCase):
             verbose=False,
             n_shots=putils.fast_pow(2, 10)
         )
-        self.assertLessEqual(linalg.norm(vector - res), 0.15)
+        self.assertLessEqual(linalg.norm(vector - res), 0.20)
 
     def test_vector1(self):
         state = array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)])

@@ -134,5 +134,7 @@ dmypy.json
 
 config*
 
-job*
-out*
+jobs/*
+logs/*
+
+.vscode
