@@ -14,8 +14,7 @@ from datetime import datetime as dt
 
 import os
 
-from qiskit import transpile
-from qiskit import execute
+from qiskit import transpile, execute, QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit_ibm_provider import IBMProvider
 from qiskit_ibm_runtime import QiskitRuntimeService, Session
@@ -103,19 +102,26 @@ class measurement_manager:
         self.device = provider.get_backend("ibm_lagos")
         self.session = Session(backend=self.device)
 
-    def set_state(self, state) -> None:
+    def set_state(self, state: ndarray | QuantumCircuit) -> None:
         """Sets the state for this measurement manager."""
-
-        if state.ndim == 1:
-            putils.fprint("Input vector: {}".format(state), flush=True)
-            self.n_qubits = putils.fast_log2(len(state))
-            self.m_state = qutils.create_vector_circuit(state, self.n_qubits)
-        else:
-            if state.shape[0] != state.shape[1]:
-                raise Exception
-            putils.fprint("Input matrix:\n{}".format(state), flush=True)
-            self.n_qubits = putils.fast_log2(state.shape[0]) * 2
-            self.m_state = qutils.create_matrix_circuit(state, self.n_qubits)
+        if type(state) is ndarray:
+            if state.ndim == 1:
+                putils.fprint("Input vector: {}".format(state), flush=True)
+                self.n_qubits = putils.fast_log2(len(state))
+                self.m_state = qutils.create_vector_circuit(state, self.n_qubits)
+            else:
+                if state.shape[0] != state.shape[1]:
+                    raise Exception
+                putils.fprint("Input matrix:\n{}".format(state), flush=True)
+                self.n_qubits = putils.fast_log2(state.shape[0]) * 2
+                self.m_state = qutils.create_matrix_circuit(state, self.n_qubits)
+        elif type(state) is QuantumCircuit:
+            putils.fprint("Input circuit:\n{}".format(str(state)), flush=True)
+            self.n_qubits = state.num_qubits
+            self.m_state = state
+            putils.fprint(
+                "Statevector:\n{}".format(qutils.circuit_to_statevector(self.m_state))
+            )
 
         self.m_state.barrier()
 

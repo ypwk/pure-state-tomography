@@ -16,7 +16,7 @@ necessary modules and classes:
 See each function's respective docstring for detailed usage and parameter information.
 """
 
-from numpy import ndarray, array
+from numpy import ndarray, array, asarray
 
 from qiskit import QuantumCircuit, transpile, result
 from qiskit.extensions import UnitaryGate
@@ -24,10 +24,7 @@ from qiskit_aer import AerSimulator
 
 from enum import Enum
 
-
-# EPSILON = 1.5e-2  # matrix
-# EPSILON = 5e-2  # vector
-EPSILON = 5e-5  # statevector
+EPSILON = 5e-2
 
 
 class m_type(Enum):
@@ -147,6 +144,22 @@ def run_circuit(qc, shots=1024, backend=None) -> result.counts.Counts:
     t_qc = transpile(qc, aer_sim)
     result = aer_sim.run(t_qc, shots=shots).result()
     return result.get_counts(qc)
+
+
+def circuit_to_statevector(qc: QuantumCircuit) -> ndarray:
+    """Converts a circuit into a statevector
+
+    Args:
+        qc (QuantumCircuit): The circuit to convert
+
+    Returns:
+        ndarray: The vector representation of the circuit
+    """
+    copied = qc.copy("execution")
+    copied.save_statevector()
+    simulator = AerSimulator(method="statevector")
+    raw_result = simulator.run(copied).result()
+    return asarray(raw_result.get_statevector(copied))
 
 
 __author__ = "Kevin Wu"
