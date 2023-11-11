@@ -1,36 +1,47 @@
 #!/usr/bin/env python
-
 """
-This file provides utility and main execution code for quantum state tomography, aiming to infer the state of a hidden
-    input vector.
+This module implements quantum state tomography using a pure state tomography algorithm.
+It leverages various libraries such as Qiskit Aer for quantum simulation, NetworkX for
+graph operations, and Numpy for numerical computations. The primary focus of this module
+is to infer the state of a quantum system (represented as a vector) based on
+measurements.
 
-Dependencies:
-numpy: For array operations, linear algebra, and random number generation.
-networkx: For graph structures and minimum spanning tree operations.
-putils, qutils, mmng: Custom utility and manager modules.
-Classes:
-tomography: Contains methods for performing quantum state tomography, both in simulation and with actual quantum
-    machines.
+It defines one class:
+- `tomography`: A class encapsulating the functionality for performing pure state
+                tomography. It includes methods for setting up the quantum system,
+                executing the tomography algorithm, and processing the results.
 
-Methods:
-pure_state_tomography: Uses the pure state tomography algorithm to deduce the state of a hidden input vector.
-__iter_inf_helper: An iterative inference helper method.
+The `tomography` class provides a method `pure_state_tomography` to perform the state
+tomography. It supports various configurations and options like the number of qubits,
+usage of simulators, verbose output, and handling of Hadamard gates. Additionally,
+it includes a private method `__iter_inf_helper` to assist in the iterative process of
+inferring quantum states.
 
-Main Execution:
-Demonstrates the application of the tomography class to infer predefined quantum states, logging the reconstructed
-    vector and associated error.
-Metadata:
 
-Author: Kevin Wu
-For comprehensive details on functions, methods, and their parameters, refer to individual docstrings within the code.
+Example usage:
+The module is intended to be used in quantum computing environments where state
+tomography is required. Users should create an instance of the `tomography` class
+and call its methods with the appropriate parameters to perform quantum state
+tomography. See the experiment.ipynb file for more information.
+
+Note:
+This module assumes familiarity with quantum computing concepts and terminologies.
 """
 
-from numpy import ndarray, array, sqrt, zeros, linalg, reshape
+from numpy import (
+    ndarray,
+    asarray,
+    sqrt,
+    zeros,
+    linalg,
+)
+
+from networkx import complete_graph, minimum_spanning_tree
+from qiskit_aer import AerSimulator
 
 import putils
 import qutils
-import mmng
-from networkx import complete_graph, minimum_spanning_tree
+from measurement_manager import measurement_manager
 
 
 class tomography:
@@ -39,22 +50,39 @@ class tomography:
 
     def pure_state_tomography(
         self,
-        mm,
-        n_qubits=2,
-        simulator=True,
-        verbose=False,
-        job_file=None,
+        mm: measurement_manager,
+        verbose: bool = False,
+        job_file: str = None,
+        hadamard: bool = False,
     ):
-        """Uses the pure state tomography algorithm to infer the state of a hidden input_vector
+        """
+        Conducts pure state tomography on a quantum system to infer its state. This
+        method uses measurements and quantum operations to reconstruct the state
+        of a quantum system given a set of measurements.
 
         Args:
-            input_state (numpy.ndarray, optional): The hidden input_vector to infer.
-            n_qubits (int, optional): The number of qubits needed to represent the input_vector. Defaults to 2.
-            precise (bool): Whether or not to use precise measurements on Qiskit
-            simulator (bool): Whether or not to use Qiskit simulator or IBM quantum machine
-            n_shots (int): The number of shots to use for imprecise measurements on Qiskit. Only comes into effect when
-                precise is False.
-            verbose (bool): Whether to print detailed information
+            mm (measurement_manager): An instance of the measurement manager that
+                                    handles quantum measurements and operations.
+            verbose (bool, optional): If set to True, the function will print detailed
+                                    information about the tomography process. Defaults
+                                    to False.
+            job_file (str, optional): Path to a file containing precomputed jobs. If not
+                                    provided, the function will compute and save jobs
+                                    depending on the execution context. Defaults to
+                                    None.
+            hadamard (bool, optional): If set to True, applies a Hadamard transformation
+                                    to the quantum system before and after tomography.
+                                    Defaults to False.
+
+        Returns:
+            numpy.ndarray: A complex-valued array representing the inferred state of the
+                        quantum system.
+
+        Raises:
+            ValueError: If the provided parameters are invalid or if an error occurs
+                        during the tomography process.
+
+        See experiment.ipynb for example usage.
         """
         self.verbosefprint = putils.fprint if verbose else lambda *a, **k: None
         self.verboseprint = print if verbose else lambda *a, **k: None
@@ -63,17 +91,36 @@ class tomography:
         DIM = putils.fast_pow(2, mm.n_qubits)
         res = zeros((DIM, 2))
 
-        if simulator:
+        if hadamard:  # add hadamard
+            for a in range(mm.n_qubits):
+                mm.m_state.h(a)
+
+        if (
+            mm.execution_type == qutils.execution_type.statevector
+            or mm.execution_type == qutils.execution_type.simulator
+        ):
             self.__iter_inf_helper(res, mm, dry=False)
         else:
             if job_file is None:
                 mm.dummy_measurement(qutils.m_type.identity, 0)
                 mm.to_job_file()
+                self.verbosefprint(
+                    "Number of unitary operators applied: {}. Need more!".format(
+                        mm.num_measurements
+                    ),
+                )
+                return
             else:
                 measurement_count = mm.consume_job_file(job_file)
                 self.__iter_inf_helper(res, mm, dry=True)
                 if len(mm) > measurement_count:
                     mm.to_job_file()
+                    self.verbosefprint(
+                        "Number of unitary operators applied: {}. Need more!".format(
+                            mm.num_measurements
+                        ),
+                    )
+                    return
                 else:
                     res = zeros((DIM, 2))
                     self.__iter_inf_helper(res, mm, dry=False)
@@ -82,24 +129,46 @@ class tomography:
             "Number of unitary operators applied: {}".format(mm.num_measurements),
         )
 
-        return [res[a][0] + 1j * res[a][1] for a in range(DIM)]
+        vector_form_result = [res[a][0] + 1j * res[a][1] for a in range(DIM)]
+        vector_form_result = vector_form_result / linalg.norm(vector_form_result)
+        if hadamard:
+            self.verbosefprint(
+                "Before Hadamard: {}".format(vector_form_result),
+            )
+            circuit = qutils.create_vector_circuit(vector_form_result, mm.n_qubits)
+            for a in range(mm.n_qubits):
+                circuit.h(a)
+            circuit.save_statevector()
+
+            simulator = AerSimulator(method="statevector")
+            raw_result = simulator.run(circuit).result()
+            vector_form_result = asarray(raw_result.get_statevector(circuit))
+
+            self.verbosefprint(
+                "After Hadamard: {}".format(vector_form_result),
+            )
+
+        return vector_form_result
 
     def __iter_inf_helper(
         self,
         target_arr: ndarray,
-        mm: mmng.meas_manager,
+        mm: measurement_manager,
         dry: bool,
     ) -> None:
         """An iterative implementation of the inference helper
 
         Args:
             target_arr (numpy.ndarray): The array with incomplete measurements
-            mm (meas_manager): Measure manager keeping track of measurement values.
+            mm (measurement_manager): Manager object keeping track of measurement
+                                      values.
             dry (bool): Denotes whether or not this should be a dry run.
         """
 
         # do identity measurement to seed
         id_m = mm.fetch_m(qutils.m_type.identity, 0)
+        if dry and type(id_m) is str:
+            return
         counts = qutils.find_nonzero_positions(id_m)
 
         if len(counts) == 0:
@@ -231,7 +300,7 @@ class tomography:
                 int(x) for x in "{:0{size}b}".format(target, size=mm.n_qubits)
             ]
             nonzero = qutils.find_nonzero_positions(output)
-            target_nonzero = qutils.find_nonzero_positions(output)
+            target_nonzero = qutils.find_nonzero_positions(target_nonzero)
             op_pos = nonzero[0]
             nonzero = list(nonzero[1:])
 
@@ -276,76 +345,6 @@ class tomography:
         if dry:
             mm.session.close()
 
-
-if __name__ == "__main__":
-    initial_states = [
-        # array([1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
-        # array([1 / 2, -1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)]),
-        # array([1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)]),
-        # array([1 / 2, 0, 0, -3 / sqrt(12)]),
-        array([1, 0, 0, 1]) / linalg.norm(array([1, 0, 0, 1])),
-        array([0, 1, 1, 0]) / linalg.norm(array([1, 0, 0, 1])),
-        # array([1 / sqrt(2) + 1j / sqrt(2), 0, 0, 1 / sqrt(2) + 1j / sqrt(2)]) / linalg.norm(array([1, 0, 0, 1])),
-        # array([1, 0, 0, 1 / sqrt(2) + 1j / sqrt(2), 0, 0, 1, 0]) / linalg.norm(array([1, 0, 0, 1 / sqrt(2) + 1j / sqrt(2), 0, 0, 1, 0])),
-        array(
-            [
-                [1 / 2, 1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)],
-                [1 / 2, -1 / sqrt(2), 1 / sqrt(6), 1 / sqrt(12)],
-                [1 / 2, 0, -2 / sqrt(6), 1 / sqrt(12)],
-                [1 / 2, 0, 0, -3 / sqrt(12)],
-            ]
-        ),
-        # / linalg.norm(array([1, 0, 0, 1 / sqrt(2) + 1j / sqrt(2), 0, 0, 1, 0])),
-        # array([1, 0, 0, 1, 0, 0, 1, 0]) / linalg.norm(array([1, 0, 0, 1, 0, 0, 1, 0])),
-    ]
-    job_names = [
-        # "job_2023_10_09T_11_26_09.txt",
-        # "job_2023_10_09T_11_26_17.txt",
-        # "job_2023_10_09T_11_26_25.txt",
-        # "job_2023_10_15T_15_45_57.txt",
-    ]
-
-    # job_names = [
-    #     "job_2023_10_16T_01_45_47.txt",
-    #     "job_2023_10_16T_01_45_54.txt",
-    #     "job_2023_10_16T_01_45_59.txt",
-    # ]
-    VERBOSE = True
-    SIMULATOR = True
-    SHOTS = putils.fast_pow(2, 10)
-    putils.fprint("Running inference at {} shots\n".format(SHOTS))
-
-    talg = tomography()
-
-    mm = mmng.meas_manager(
-        n_shots=SHOTS,
-        simulator=SIMULATOR,
-        use_statevector=True,
-        verbose=VERBOSE,
-    )
-
-    for state in range(len(initial_states)):
-        mm.set_state(initial_states[state])
-        res = talg.pure_state_tomography(
-            mm=mm,
-            n_qubits=putils.fast_log2(len(initial_states[state])),
-            simulator=SIMULATOR,
-            verbose=VERBOSE,
-            job_file=job_names[state] if state < len(job_names) else None,
-        )
-
-        if initial_states[state].ndim > 1:
-            res = reshape(
-                res,
-                (
-                    initial_states[state].shape[0],
-                    initial_states[state].shape[0],
-                ),
-            ).T * 2
-        putils.fprint("Reconstructed vector:\n{}".format(res))
-        putils.fprint(
-            "% Error: {}\n".format(100 * linalg.norm(initial_states[state] - res))
-        )
 
 __author__ = "Kevin Wu"
 __credits__ = ["Kevin Wu"]

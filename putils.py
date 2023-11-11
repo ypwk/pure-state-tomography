@@ -5,7 +5,8 @@ Functions:
 - fast_pow: Computes fast exponentiation using squaring.
 - fast_log2: Computes the logarithm base 2 of a number using bit length.
 - hamming: Computes the Hamming distance between two integers.
-- fprint: Wrapper for the print function that prints to console and writes to a file simultaneously.
+- fprint: Wrapper for the print function that prints to console and writes to a file
+    simultaneously.
 
 See each function's respective docstring for detailed usage and parameter information.
 """
@@ -73,7 +74,8 @@ FILENAME = "log_{}.txt".format(dt.now().strftime("%Y_%m_%dT_%H_%M_%S"))
 
 def fprint(*args, filename=FILENAME, mode="a", **kwargs):
     """
-    Wrapper for the print function that prints to console and writes to a file simultaneously.
+    Wrapper for the print function that prints to console and writes to a file
+    simultaneously.
 
     Args:
         *args: Positional arguments for the print function.
