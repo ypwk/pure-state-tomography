@@ -13,6 +13,7 @@ from numpy import ndarray, sqrt, asarray, zeros
 from datetime import datetime as dt
 
 import os
+import re
 
 from qiskit import transpile, execute, QuantumCircuit
 from qiskit_aer import AerSimulator
@@ -261,7 +262,6 @@ class measurement_manager:
                 data = line.strip().split(":")
                 job = service.job(job_id=data[0])
                 run_data = job.result().data()["counts"]
-                print(run_data)
 
                 m = qutils.m_type.identity
                 if "real" in data[1]:
@@ -270,8 +270,17 @@ class measurement_manager:
                     m = qutils.m_type.cmplx_hadamard
 
                 op_pos = int(data[2])
-
-                cnots = [int(i) if i != "" else None for i in list(data[3].split(","))]
+                cnots = [item for item in data[3].split(",") if item != ""]
+                if len(cnots) == 0:
+                    cnots = [None]
+                else:
+                    cnots = [
+                        [
+                            int(re.sub("[^0-9]", "", cnots[i])),
+                            int(re.sub("[^0-9]", "", cnots[i + 1])),
+                        ]
+                        for i in range(0, len(cnots), 2)
+                    ]
 
                 if self.verbose:
                     state_circuit = self.construct_circuit(
@@ -292,7 +301,7 @@ class measurement_manager:
                         res[int(key, 16)] = run_data[key] / self.n_shots
                     self.__c_measurements[m].append(
                         {
-                            "cnots": set(cnots),
+                            "cnots": cnots,
                             "op_pos": op_pos,
                             "data": res,
                             "str": None
