@@ -268,29 +268,42 @@ class tomography:
         graph = complete_graph(counts)
         for a in graph.nodes():
             for b in graph.nodes():
-                if a != b:
+                if a != b and (a in t_list or b in t_list):
                     graph[a][b]["weight"] = putils.hamming(a, b)
         mst = minimum_spanning_tree(graph)
 
-        for target in t_list:
+        while len(t_list) > 0:
             # find best source
-            edges = sorted(
-                mst.edges(data=True), key=lambda node: node[2].get("weight", 1)
-            )
+            weighted_edges = [
+                edge for edge in mst.edges(data=True) if "weight" in edge[2]
+            ]
+            edges = sorted(weighted_edges, key=lambda node: node[2].get("weight", 1))
+
             cm_idx = 0
             minimum_weight_edge = edges[cm_idx]
             source = (
                 minimum_weight_edge[0]
-                if minimum_weight_edge[1] == target
+                if minimum_weight_edge[1] in t_list
                 else minimum_weight_edge[1]
+            )
+            target = (
+                minimum_weight_edge[1]
+                if minimum_weight_edge[1] != source
+                else minimum_weight_edge[0]
             )
             while source in t_list:
                 minimum_weight_edge = edges[cm_idx]
                 source = (
                     minimum_weight_edge[0]
-                    if minimum_weight_edge[1] == target
+                    if minimum_weight_edge[1] in t_list
                     else minimum_weight_edge[1]
                 )
+                target = (
+                    minimum_weight_edge[1]
+                    if minimum_weight_edge[1] != source
+                    else minimum_weight_edge[0]
+                )
+                cm_idx += 1
 
             # construct measure operators with correct CNOT placement
             output = [
@@ -324,8 +337,12 @@ class tomography:
                 mm.dummy_measurement(qutils.m_type.real_hadamard, op_pos, cnots)
                 mm.dummy_measurement(qutils.m_type.cmplx_hadamard, op_pos, cnots)
             else:
-                real_m = mm.fetch_cm(qutils.m_type.real_hadamard, cnots, op_pos)
-                cmplx_m = mm.fetch_cm(qutils.m_type.cmplx_hadamard, cnots, op_pos)
+                if len(cnots) == 0:
+                    real_m = mm.fetch_m(qutils.m_type.real_hadamard, op_pos)
+                    cmplx_m = mm.fetch_m(qutils.m_type.cmplx_hadamard, op_pos)
+                else:
+                    real_m = mm.fetch_cm(qutils.m_type.real_hadamard, cnots, op_pos)
+                    cmplx_m = mm.fetch_cm(qutils.m_type.cmplx_hadamard, cnots, op_pos)
 
                 corrected_target = target
                 for cnot in cnots:
@@ -340,6 +357,7 @@ class tomography:
                 )
 
             mst.remove_edge(minimum_weight_edge[0], minimum_weight_edge[1])
+            t_list.remove(target)
 
         self.verbosefprint("")
         if dry:
