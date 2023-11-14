@@ -164,38 +164,53 @@ class measurement_manager:
                         and type(self.__measurements[t][op_pos]["res"]) is int
                     ):
                         measurements += 1
-                        job_id = self.add_m(t, op_pos)
-                        f.write(
-                            "{}:{}:{}:{}\n".format(
-                                job_id,
-                                t,
-                                op_pos,
-                                ",".join(str(_) for _ in []),
+                        try:
+                            job_id = self.add_m(t, op_pos)
+                        except Exception as error:
+                            self.verbosefprint(error)
+                            self.verbosefprint(
+                                "Concurrent Job Limit Reached! Stopping..."
                             )
-                        )
-                        if measurements == MAX_CONC_JOB_COUNT:
                             return
+                        finally:
+                            f.write(
+                                "{}:{}:{}:{}\n".format(
+                                    job_id,
+                                    t,
+                                    op_pos,
+                                    ",".join(str(_) for _ in []),
+                                )
+                            )
+                            if measurements == MAX_CONC_JOB_COUNT:
+                                return
                 for cm in range(len(self.__c_measurements[t])):
                     if type(self.__c_measurements[t][cm]["data"]) is int:
                         measurements += 1
-                        job_id = self.add_cm(
-                            t,
-                            self.__c_measurements[t][cm]["cnots"],
-                            self.__c_measurements[t][cm]["op_pos"],
-                        )
-                        f.write(
-                            "{}:{}:{}:{}\n".format(
-                                job_id,
+                        try:
+                            job_id = self.add_cm(
                                 t,
+                                self.__c_measurements[t][cm]["cnots"],
                                 self.__c_measurements[t][cm]["op_pos"],
-                                ",".join(
-                                    str(_)
-                                    for _ in self.__c_measurements[t][cm]["cnots"]
-                                ),
                             )
-                        )
-                        if measurements == MAX_CONC_JOB_COUNT:
-                            return
+                        except Exception as error:
+                            self.verbosefprint(error)
+                            self.verbosefprint(
+                                "Concurrent Job Limit reached! Stopping..."
+                            )
+                        finally:
+                            f.write(
+                                "{}:{}:{}:{}\n".format(
+                                    job_id,
+                                    t,
+                                    self.__c_measurements[t][cm]["op_pos"],
+                                    ",".join(
+                                        str(_)
+                                        for _ in self.__c_measurements[t][cm]["cnots"]
+                                    ),
+                                )
+                            )
+                            if measurements == MAX_CONC_JOB_COUNT:
+                                return
 
     def construct_circuit(self, measure_type: qutils.m_type, op_pos: int, cnots=()):
         """Constructs a quantum circuit based on the specified measurements and

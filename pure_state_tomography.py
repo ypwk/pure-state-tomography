@@ -30,15 +30,12 @@ This module assumes familiarity with quantum computing concepts and terminologie
 
 from numpy import (
     ndarray,
-    asarray,
     sqrt,
     zeros,
     linalg,
 )
 
 from networkx import complete_graph, minimum_spanning_tree
-from qiskit_aer import AerSimulator
-
 import putils
 import qutils
 from measurement_manager import measurement_manager
@@ -135,15 +132,7 @@ class tomography:
             self.verbosefprint(
                 "Before Hadamard: {}".format(vector_form_result),
             )
-            circuit = qutils.create_vector_circuit(vector_form_result, mm.n_qubits)
-            for a in range(mm.n_qubits):
-                circuit.h(a)
-            circuit.save_statevector()
-
-            simulator = AerSimulator(method="statevector")
-            raw_result = simulator.run(circuit).result()
-            vector_form_result = asarray(raw_result.get_statevector(circuit))
-
+            vector_form_result = putils.hadamard(vector_form_result)
             self.verbosefprint(
                 "After Hadamard: {}".format(vector_form_result),
             )

@@ -13,6 +13,8 @@ See each function's respective docstring for detailed usage and parameter inform
 
 from datetime import datetime as dt
 
+from numpy import ndarray, array, zeros, sqrt
+
 import os
 
 
@@ -47,6 +49,29 @@ def fast_log2(num: int) -> int:
         int: the result
     """
     return num.bit_length() - 1
+
+
+def hadamard(vec: ndarray) -> ndarray:
+    """Applies a hadamard to the vec state.
+
+    Args:
+        vec (ndarray): A vector.
+
+    Returns:
+        ndarray: The vector with Hadamard applied.
+    """
+    nq = fast_log2(len(vec))
+    coeff = sqrt(len(vec))
+    ret = zeros(len(vec), dtype="complex_")
+    for a in range(len(vec)):
+        hadamard = zeros(len(vec))
+        for i in range(nq):
+            hadamard += array([((a & b) >> i) & 1 for b in range(len(vec))])
+        hadamard %= 2
+        hadamard = array([-1 if v else 1 for v in hadamard], dtype="complex_")
+        hadamard /= coeff
+        ret[a] = vec.dot(hadamard.T)
+    return ret
 
 
 def hamming(i1: int, i2: int) -> int:
