@@ -73,8 +73,8 @@ state.cx(2, 1)
 
 ### 000, 011, 110
 
-- Normal Job File:
-- Hadamard Job File:
+- Normal Job File: job_2023_11_15T_02_37_59.txt
+- Hadamard Job File: job_2023_11_15T_02_38_50.txt
 - Circuit:
 
 ```
@@ -89,7 +89,7 @@ state.cx(2, 1)
 
 ## General Unitary
 
-- Normal Job File:
+- Normal Job File: job_2023_11_15T_02_39_53.txt
 - Circuit:
 
 ```
