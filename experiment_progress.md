@@ -45,7 +45,7 @@ state.cnot(2, 0)
 ### 000, 010, 100
 
 - Normal Job File: job_2023_11_14T_08_14_09.txt
-- Hadamard Job File:
+- Hadamard Job File: job_2023_11_15T_02_23_34.txt
 - Circuit:
 
 ```
@@ -58,8 +58,8 @@ state.h(2)
 
 ### 000, 010, 110
 
-- Normal Job File:
-- Hadamard Job File:
+- Normal Job File: job_2023_11_15T_02_26_50.txt
+- Hadamard Job File: job_2023_11_15T_02_28_19.txt
 - Circuit:
 
 ```
