@@ -5,7 +5,7 @@
 ### 000, 001
 
 - Normal Job File: job_2023_11_11T_02_41_28.txt (DONE)
-- Hadamard Job File: job_2023_11_13T_17_06_44.txt
+- Hadamard Job File: job_2023_11_13T_17_06_44.txt (DONE)
 - Circuit:
 
 ```
