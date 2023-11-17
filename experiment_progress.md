@@ -58,7 +58,7 @@ state.h(2)
 
 ### 000, 010, 110
 
-- Normal Job File: job_2023_11_15T_02_26_50.txt (DONE)*
+- Normal Job File: job_2023_11_16T_21_07_30.txt (DONE)
 - Hadamard Job File: job_2023_11_15T_02_28_19.txt (DONE)
 - Circuit:
 
@@ -73,8 +73,8 @@ state.cx(2, 1)
 
 ### 000, 011, 110
 
-- Normal Job File: job_2023_11_15T_02_37_59.txt
-- Hadamard Job File: job_2023_11_15T_02_38_50.txt
+- Normal Job File: job_2023_11_15T_02_37_59.txt (DONE)
+- Hadamard Job File: job_2023_11_15T_02_38_50.txt (DONE)
 - Circuit:
 
 ```
@@ -89,7 +89,7 @@ state.cx(2, 1)
 
 ## General Unitary
 
-- Normal Job File: job_2023_11_15T_02_39_53.txt
+- Normal Job File: job_2023_11_15T_02_39_53.txt (DONE)
 - Circuit:
 
 ```
