@@ -59,7 +59,7 @@ state.h(2)
 ### 000, 010, 110
 
 - Normal Job File: job_2023_11_15T_02_26_50.txt (DONE)
-- Hadamard Job File: job_2023_11_15T_02_28_19.txt (DONE)
+- Hadamard Job File: job_2023_11_15T_02_28_19.txt (DONE)*
 - Circuit:
 
 ```
