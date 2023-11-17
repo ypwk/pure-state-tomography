@@ -24,7 +24,7 @@ from qiskit_aer import AerSimulator
 
 from enum import Enum
 
-EPSILON = 5e-2
+EPSILON = 5e-3
 
 
 class m_type(Enum):
