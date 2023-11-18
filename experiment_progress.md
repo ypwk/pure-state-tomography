@@ -56,10 +56,10 @@ state.cx(2, 1)
 state.h(2)
 ```
 
-### 000, 010, 110
+### 000, 010, 101
 
-- Normal Job File: job_2023_11_16T_21_07_30.txt (DONE)
-- Hadamard Job File: job_2023_11_15T_02_28_19.txt (DONE)
+- Normal Job File: job_2023_11_17T_22_13_12.txt (DONE)
+- Hadamard Job File: job_2023_11_17T_22_20_16.txt (DONE)
 - Circuit:
 
 ```
@@ -68,7 +68,7 @@ state.u(pi / 4, 0, 0, 1)
 state.u(pi / 4, 0, 0, 2)
 state.cx(2, 1)
 state.h(2)
-state.cx(2, 1)
+state.cx(2, 0)
 ```
 
 ### 000, 011, 110
