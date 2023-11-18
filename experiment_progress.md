@@ -73,7 +73,7 @@ state.cx(2, 1)
 
 ### 000, 011, 110
 
-- Normal Job File: job_2023_11_15T_02_37_59.txt (DONE)
+- Normal Job File: job_2023_11_17T_19_33_27.txt (DONE)
 - Hadamard Job File: job_2023_11_15T_02_38_50.txt (DONE)
 - Circuit:
 
