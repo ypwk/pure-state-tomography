@@ -103,26 +103,41 @@ class measurement_manager:
         self.device = provider.get_backend("ibm_lagos")
         self.session = Session(backend=self.device)
 
-    def set_state(self, state: ndarray | QuantumCircuit) -> None:
+    def set_state(
+        self, tomography_type: qutils.tomography_type, state: ndarray | QuantumCircuit
+    ) -> None:
         """Sets the state for this measurement manager."""
         if type(state) is ndarray:
-            if state.ndim == 1:
+            if tomography_type is qutils.tomography_type.state:
                 putils.fprint("Input vector: {}".format(state), flush=True)
                 self.n_qubits = putils.fast_log2(len(state))
                 self.m_state = qutils.create_vector_circuit(state, self.n_qubits)
-            else:
+            elif tomography_type is qutils.tomography_type.process:
                 if state.shape[0] != state.shape[1]:
                     raise Exception
                 putils.fprint("Input matrix:\n{}".format(state), flush=True)
                 self.n_qubits = putils.fast_log2(state.shape[0]) * 2
                 self.m_state = qutils.create_matrix_circuit(state, self.n_qubits)
         elif type(state) is QuantumCircuit:
-            putils.fprint("Input circuit:\n{}".format(str(state)), flush=True)
-            self.n_qubits = state.num_qubits
-            self.m_state = state
-            putils.fprint(
-                "Statevector:\n{}".format(qutils.circuit_to_statevector(self.m_state))
-            )
+            if tomography_type is qutils.tomography_type.state:
+                putils.fprint("Input circuit:\n{}".format(str(state)), flush=True)
+                self.n_qubits = state.num_qubits
+                self.m_state = state
+                putils.fprint(
+                    "Statevector:\n{}".format(
+                        qutils.circuit_to_statevector(self.m_state)
+                    )
+                )
+            else:
+                self.n_qubits = state.num_qubits * 2
+                self.m_state = QuantumCircuit(self.n_qubits)
+                for a in range(self.n_qubits // 2):
+                    self.m_state.h(self.n_qubits // 2 + a)
+                for a in range(self.n_qubits // 2 - 1, -1, -1):
+                    self.m_state.cnot(self.n_qubits // 2 + a, a)
+                self.m_state = self.m_state.compose(
+                    state.copy(), range(0, state.num_qubits)
+                )
 
         self.m_state.barrier()
 

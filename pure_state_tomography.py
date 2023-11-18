@@ -48,6 +48,7 @@ class tomography:
     def pure_state_tomography(
         self,
         mm: measurement_manager,
+        tomography_type: qutils.tomography_type,
         verbose: bool = False,
         job_file: str = None,
         hadamard: bool = False,
@@ -60,6 +61,7 @@ class tomography:
         Args:
             mm (measurement_manager): An instance of the measurement manager that
                                     handles quantum measurements and operations.
+            tomography_type (qutils.tomography_type): Type of tomography.
             verbose (bool, optional): If set to True, the function will print detailed
                                     information about the tomography process. Defaults
                                     to False.
@@ -127,7 +129,8 @@ class tomography:
         )
 
         vector_form_result = [res[a][0] + 1j * res[a][1] for a in range(DIM)]
-        vector_form_result = vector_form_result / linalg.norm(vector_form_result)
+        if tomography_type is qutils.tomography_type.state:
+            vector_form_result = vector_form_result / linalg.norm(vector_form_result)
         if hadamard:
             self.verbosefprint(
                 "Before Hadamard: {}".format(vector_form_result),

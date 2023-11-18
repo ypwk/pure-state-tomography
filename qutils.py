@@ -24,7 +24,7 @@ from qiskit_aer import AerSimulator
 
 from enum import Enum
 
-EPSILON = 5e-3
+EPSILON = 5e-4
 
 
 class m_type(Enum):
@@ -37,6 +37,11 @@ class execution_type(Enum):
     ibm_qpu = 1
     simulator = 2
     statevector = 3
+
+
+class tomography_type(Enum):
+    process = 1
+    state = 2
 
 
 def find_nonzero_positions(counts, epsilon=EPSILON) -> list:
@@ -160,6 +165,22 @@ def circuit_to_statevector(qc: QuantumCircuit) -> ndarray:
     simulator = AerSimulator(method="statevector")
     raw_result = simulator.run(copied).result()
     return asarray(raw_result.get_statevector(copied))
+
+
+def circuit_to_unitary(qc: QuantumCircuit) -> ndarray:
+    """Converts a circuit into a unitary matrix
+
+    Args:
+        qc (QuantumCircuit): The circuit to convert
+
+    Returns:
+        ndarray: The unitary matrix representation of the circuit
+    """
+    copied = qc.copy("execution")
+    copied.save_unitary()
+    simulator = AerSimulator(method="unitary")
+    raw_result = simulator.run(copied).result()
+    return asarray(raw_result.get_unitary(copied))
 
 
 __author__ = "Kevin Wu"
