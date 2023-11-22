@@ -29,6 +29,7 @@ This module assumes familiarity with quantum computing concepts and terminologie
 """
 
 from numpy import (
+    array,
     ndarray,
     sqrt,
     zeros,
@@ -87,20 +88,29 @@ class tomography:
         self.verboseprint = print if verbose else lambda *a, **k: None
 
         self.n_qubits = mm.n_qubits
+        self.hadamard = hadamard
         DIM = putils.fast_pow(2, mm.n_qubits)
         res = zeros((DIM, 2))
-
-        if hadamard:  # add hadamard
-            for a in range(mm.n_qubits):
-                mm.m_state.h(a)
 
         if (
             mm.execution_type == qutils.execution_type.statevector
             or mm.execution_type == qutils.execution_type.simulator
         ):
+            if hadamard:
+                identity_circuit = mm.construct_circuit(
+                    measure_type=qutils.m_type.identity, op_pos=0
+                )
+                self.identity_res = mm.measure_state(identity_circuit)
+                for a in range(mm.n_qubits):
+                    mm.m_state.h(a)
             self.__iter_inf_helper(res, mm, dry=False)
         else:
             if job_file is None:
+                if hadamard:  # add hadamard
+                    mm.dummy_measurement(qutils.m_type.identity, 1)
+                    for a in range(mm.n_qubits):
+                        mm.m_state.h(a)
+                self.identity_res = mm.fetch_m(qutils.m_type.identity, 1)
                 mm.dummy_measurement(qutils.m_type.identity, 0)
                 mm.to_job_file()
                 self.verbosefprint(
@@ -128,17 +138,22 @@ class tomography:
             "Number of unitary operators applied: {}".format(mm.num_measurements),
         )
 
-        vector_form_result = [res[a][0] + 1j * res[a][1] for a in range(DIM)]
-        if tomography_type is qutils.tomography_type.state:
-            vector_form_result = vector_form_result / linalg.norm(vector_form_result)
+        vector_form_result = array([res[a][0] + 1j * res[a][1] for a in range(DIM)])
         if hadamard:
             self.verbosefprint(
                 "Before Hadamard: {}".format(vector_form_result),
             )
             vector_form_result = putils.hadamard(vector_form_result)
+            vector_form_result = [
+                vector_form_result[i] if self.identity_res[i] > 5e-2 else 0
+                for i in range(len(vector_form_result))
+            ]
             self.verbosefprint(
                 "After Hadamard: {}".format(vector_form_result),
             )
+
+        if tomography_type is qutils.tomography_type.state:
+            vector_form_result = vector_form_result / linalg.norm(vector_form_result)
 
         return vector_form_result
 
@@ -161,7 +176,9 @@ class tomography:
         id_m = mm.fetch_m(qutils.m_type.identity, 0)
         if dry and type(id_m) is str:
             return
-        counts = qutils.find_nonzero_positions(id_m)
+        counts = qutils.find_nonzero_positions(
+            id_m, epsilon=5e-3 if self.hadamard else 5e-2
+        )
 
         if len(counts) == 0:
             return

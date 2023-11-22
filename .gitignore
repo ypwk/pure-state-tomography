@@ -138,3 +138,5 @@ jobs/*
 logs/*
 
 .vscode
+
+automatic_run.py
