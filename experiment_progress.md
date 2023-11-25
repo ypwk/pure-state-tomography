@@ -56,7 +56,7 @@ state.cx(2, 1)
 state.h(2)
 ```
 
-### 000, 010, 101
+### 000, 011, 100
 
 - Normal Job File: job_2023_11_17T_22_13_12.txt (DONE)
 - Hadamard Job File: job_2023_11_17T_22_20_16.txt (DONE)

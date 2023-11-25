@@ -53,6 +53,7 @@ class tomography:
         verbose: bool = False,
         job_file: str = None,
         hadamard: bool = False,
+        epsilon: float = 5e-2,
     ):
         """
         Conducts pure state tomography on a quantum system to infer its state. This
@@ -73,6 +74,7 @@ class tomography:
             hadamard (bool, optional): If set to True, applies a Hadamard transformation
                                     to the quantum system before and after tomography.
                                     Defaults to False.
+            epsilon (float, optional): Epsilon value used to determine nonzero entries
 
         Returns:
             numpy.ndarray: A complex-valued array representing the inferred state of the
@@ -89,6 +91,7 @@ class tomography:
 
         self.n_qubits = mm.n_qubits
         self.hadamard = hadamard
+        self.epsilon = epsilon
         DIM = putils.fast_pow(2, mm.n_qubits)
         res = zeros((DIM, 2))
 
@@ -176,9 +179,7 @@ class tomography:
         id_m = mm.fetch_m(qutils.m_type.identity, 0)
         if dry and type(id_m) is str:
             return
-        counts = qutils.find_nonzero_positions(
-            id_m, epsilon=5e-3 if self.hadamard else 5e-2
-        )
+        counts = qutils.find_nonzero_positions(id_m, epsilon=self.epsilon)
 
         if len(counts) == 0:
             return

@@ -134,7 +134,7 @@ class measurement_manager:
                 for a in range(self.n_qubits // 2):
                     self.m_state.h(self.n_qubits // 2 + a)
                 for a in range(self.n_qubits // 2 - 1, -1, -1):
-                    self.m_state.cnot(self.n_qubits // 2 + a, a)
+                    self.m_state.cx(self.n_qubits // 2 + a, a)
                 self.m_state = self.m_state.compose(
                     state.copy(), range(0, state.num_qubits)
                 )
@@ -248,7 +248,7 @@ class measurement_manager:
         if len(cnots) > 0:
             for a in cnots:
                 if a is not None:
-                    state_circuit.cnot(
+                    state_circuit.cx(
                         self.m_state.num_qubits - a[0] - 1,
                         self.m_state.num_qubits - a[1] - 1,
                     )

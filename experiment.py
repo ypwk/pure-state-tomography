@@ -9,8 +9,8 @@ from pure_state_tomography import tomography
 import putils
 import qutils
 import qiskit
-from measurement_manager import measurement_manager
 import sys
+from measurement_manager import measurement_manager
 import configparser
 from qiskit_ibm_runtime import QiskitRuntimeService
 
@@ -32,6 +32,7 @@ def run(
     verbose: bool = True,
     job_file: str = None,
     hadamard: bool = False,
+    epsilon: float = 5e-2,
 ):
     putils.fprint("Running inference at {} shots\n".format(mm.n_shots))
 
@@ -48,6 +49,7 @@ def run(
         verbose=verbose,
         job_file=job_file,
         hadamard=hadamard,
+        epsilon=epsilon,
     )
 
     if res is not None:
@@ -92,13 +94,32 @@ def run(
             putils.fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
 
 
-experiment = int(sys.argv[1])
+epsilons = [
+    5e-2,
+    5e-3,
+    5e-2,
+    5e-2,
+    5e-2,
+    5e-2,
+    5e-2,
+    5e-5,
+    5e-2,
+    5e-5,
+    5e-2,
+    5e-3,
+    5e-5,
+]
 VERBOSITY = False
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
     execution_type=qutils.execution_type.simulator,
     verbose=VERBOSITY,
 )
+experiment = sys.argv[1] if len(sys.argv) > 1 else 9
+experiment = int(experiment)
+putils.fprint(f"Index: {int(experiment)}")
+putils.fprint(f"Hadamard: {int(experiment) % 2 == 1}")
+putils.fprint(f"Experiment: {int(experiment) // 2}")
 for a in range(512):
     # put state code here
     state = qiskit.QuantumCircuit(3)
@@ -107,12 +128,12 @@ for a in range(512):
     elif experiment < 4:
         state.h(2)
         state.x(2)
-        state.cnot(2, 1)
+        state.cx(2, 1)
     elif experiment < 6:
         state.h(2)
         state.x(2)
-        state.cnot(2, 1)
-        state.cnot(2, 0)
+        state.cx(2, 1)
+        state.cx(2, 0)
     elif experiment < 8:
         state.u(pi / 4, 0, 0, 1)
         state.u(pi / 4, 0, 0, 2)
@@ -121,9 +142,9 @@ for a in range(512):
     elif experiment < 10:
         state.u(pi / 4, 0, 0, 1)
         state.u(pi / 4, 0, 0, 2)
-        state.cx(2, 1)
-        state.h(2)
-        state.cx(2, 0)
+        state.cx(1, 2)
+        state.h(1)
+        state.cx(1, 0)
     elif experiment < 12:
         state.u(pi / 4, 0, 0, 1)
         state.u(pi / 4, 0, 0, 2)
@@ -139,8 +160,11 @@ for a in range(512):
         state.u(pi / 4, 0, 0, 2)
     run(
         mm=mm,
-        tomography_type=qutils.tomography_type.state,
+        tomography_type=qutils.tomography_type.state
+        if experiment < 12
+        else qutils.tomography_type.process,
         state=state,
         verbose=VERBOSITY,
         hadamard=(experiment % 2 == 1),
+        epsilon=epsilons[experiment],
     )
