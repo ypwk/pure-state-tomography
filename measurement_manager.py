@@ -100,7 +100,7 @@ class measurement_manager:
             api_token = cp.get("IBM", "token")
 
         provider = IBMProvider(token=api_token)
-        self.device = provider.get_backend("ibm_lagos")
+        self.device = provider.get_backend("ibm_kyoto")
         self.session = Session(backend=self.device)
 
     def set_state(
