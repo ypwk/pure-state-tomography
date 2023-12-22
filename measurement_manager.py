@@ -83,6 +83,7 @@ class measurement_manager:
         self.execution_type = execution_type
         self.verbose = verbose
         self.m_state = None
+        self.clean_m_state = None
 
         self.num_measurements = 0
         self.my_job_file = None
@@ -92,6 +93,7 @@ class measurement_manager:
 
         self.__measurements = None
         self.__c_measurements = None
+        self.__clean_measurements = None
 
         api_token = ""
         with open("config.ini", "r") as cf:
@@ -100,7 +102,7 @@ class measurement_manager:
             api_token = cp.get("IBM", "token")
 
         provider = IBMProvider(token=api_token)
-        self.device = provider.get_backend("ibm_kyoto")
+        self.device = provider.get_backend("ibm_osaka")
         self.session = Session(backend=self.device)
 
     def set_state(
@@ -140,6 +142,7 @@ class measurement_manager:
                 )
 
         self.m_state.barrier()
+        self.clean_m_state = self.m_state.copy("clean")
 
         self.__measurements = {
             qutils.m_type.identity: [None for _ in range(self.n_qubits)],
@@ -150,6 +153,11 @@ class measurement_manager:
             qutils.m_type.identity: [],
             qutils.m_type.cmplx_hadamard: [],
             qutils.m_type.real_hadamard: [],
+        }
+        self.__clean_measurements = {
+            qutils.m_type.identity: [None for _ in range(self.n_qubits)],
+            qutils.m_type.cmplx_hadamard: [None for _ in range(self.n_qubits)],
+            qutils.m_type.real_hadamard: [None for _ in range(self.n_qubits)],
         }
         self.num_measurements = 0
 
@@ -173,6 +181,32 @@ class measurement_manager:
 
         with open(job_path, mode="a") as f:
             for t in qutils.m_type:
+                for op_pos in range(len(self.__clean_measurements[t])):
+                    if (
+                        self.__clean_measurements[t][op_pos] is not None
+                        and type(self.__clean_measurements[t][op_pos]["res"]) is int
+                    ):
+                        measurements += 1
+                        try:
+                            job_id = self.add_clean_m(t, op_pos)
+                        except Exception as error:
+                            self.verbosefprint(error)
+                            self.verbosefprint(
+                                "Concurrent Job Limit Reached! Stopping..."
+                            )
+                            return
+                        finally:
+                            f.write(
+                                "{}:{}:{}:{}\n".format(
+                                    job_id,
+                                    t,
+                                    op_pos,
+                                    "c",
+                                )
+                            )
+                            if measurements == MAX_CONC_JOB_COUNT:
+                                return
+
                 for op_pos in range(len(self.__measurements[t])):
                     if (
                         self.__measurements[t][op_pos] is not None
@@ -226,6 +260,43 @@ class measurement_manager:
                             )
                             if measurements == MAX_CONC_JOB_COUNT:
                                 return
+
+    def construct_clean_circuit(self, measure_type: qutils.m_type, op_pos: int):
+        """Constructs a clean quantum circuit based on the specified measurements and
+        operations.
+
+        Args:
+            measure_type (qutils.m_type): Type of measurement to be performed.
+            op_pos (int): Position of the operation in the circuit.
+            cnots (list, optional): List of positions where CNOT gates should be
+                                    inserted. Defaults to [None], implying no CNOT
+                                    gates are to be inserted.
+
+        Returns:
+            state_circuit (qiskit.circuit.QuantumCircuit): The constructed quantum
+            circuit.
+        """
+        state_circuit = self.clean_m_state.copy("execute")
+        state_circuit.barrier()
+
+        for a in range(self.m_state.num_qubits):
+            if a == self.m_state.num_qubits - op_pos - 1:
+                if measure_type == qutils.m_type.real_hadamard:
+                    state_circuit.h(a)
+                elif measure_type == qutils.m_type.cmplx_hadamard:
+                    state_circuit.unitary(
+                        [
+                            [1 / sqrt(2), 1j / sqrt(2)],
+                            [1 / sqrt(2), -1j / sqrt(2)],
+                        ],
+                        a,
+                    )
+                elif measure_type == qutils.m_type.identity:
+                    state_circuit.i(a)
+            else:
+                state_circuit.i(a)
+
+        return state_circuit
 
     def construct_circuit(self, measure_type: qutils.m_type, op_pos: int, cnots=()):
         """Constructs a quantum circuit based on the specified measurements and
@@ -300,9 +371,12 @@ class measurement_manager:
                     m = qutils.m_type.cmplx_hadamard
 
                 op_pos = int(data[2])
+                clean = False
                 cnots = [item for item in data[3].split(",") if item != ""]
                 if len(cnots) == 0:
                     cnots = [None]
+                elif cnots[0] == "c":
+                    clean = True
                 else:
                     cnots = [
                         [
@@ -313,15 +387,28 @@ class measurement_manager:
                     ]
 
                 if self.verbose:
-                    state_circuit = self.construct_circuit(
-                        measure_type=m, op_pos=op_pos, cnots=cnots
-                    )
+                    if not clean:
+                        state_circuit = self.construct_circuit(
+                            measure_type=m, op_pos=op_pos, cnots=cnots
+                        )
+                    else:
+                        state_circuit = self.construct_clean_circuit(
+                            measure_type=m, op_pos=op_pos
+                        )
 
                 if cnots[0] is None:
                     res = zeros(putils.fast_pow(2, self.m_state.num_qubits))
                     for key in run_data.keys():
                         res[int(key, 16)] = run_data[key] / self.n_shots
                     self.__measurements[m][op_pos] = {
+                        "res": res,
+                        "str": None if self.verbose is False else str(state_circuit),
+                    }
+                elif cnots[0] == "c":
+                    res = zeros(putils.fast_pow(2, self.m_state.num_qubits))
+                    for key in run_data.keys():
+                        res[int(key, 16)] = run_data[key] / self.n_shots
+                    self.__clean_measurements[m][op_pos] = {
                         "res": res,
                         "str": None if self.verbose is False else str(state_circuit),
                     }
@@ -341,6 +428,11 @@ class measurement_manager:
                     )
 
         return len(lines)
+
+    def apply_full_hadamard(self) -> None:
+        """Applies the Hadamard operator to every single qubit in the circuit."""
+        for a in range(self.n_qubits):
+            self.m_state.h(a)
 
     def add_cm(self, measure_type, cnots, op_pos=0) -> ndarray:
         """Carries out a measurement on the pure state accounting for CNOT operations,
@@ -406,7 +498,37 @@ class measurement_manager:
         self.num_measurements += 1
         self.__measurements[measure_type][op_pos] = {
             "res": res,
-            "str": None if self.verbose is False else str(state_circuit),
+            "str": "Not Verbose" if self.verbose is False else str(state_circuit),
+        }
+
+        return res
+
+    def add_clean_m(self, measure_type, op_pos=0) -> ndarray:
+        """Carries out a clean measurement on the pure state, returning the result.
+
+        Args:
+            measure_type (qutils.m_type): The type of operator used in the tensor
+                structure
+            op_pos (int, optional): The operation of the position of the operator
+                    Defaults to 0, since it is unused when the operator is the identity
+        """
+        if measure_type not in [
+            qutils.m_type.cmplx_hadamard,
+            qutils.m_type.real_hadamard,
+            qutils.m_type.identity,
+        ]:
+            raise ValueError("Measurement type {} not valid.", measure_type)
+
+        state_circuit = self.construct_clean_circuit(
+            measure_type=measure_type, op_pos=op_pos
+        )
+
+        res = self.measure_state(state_circuit)
+
+        self.num_measurements += 1
+        self.__clean_measurements[measure_type][op_pos] = {
+            "res": res,
+            "str": "Not Verbose" if self.verbose is False else str(state_circuit),
         }
 
         return res
@@ -452,9 +574,7 @@ class measurement_manager:
         """
         if measure_type == qutils.m_type.identity:
             if self.__measurements[measure_type][0] is None:
-                measurement_result = self.add_m(
-                    measure_type=measure_type, op_pos=op_pos
-                )
+                measurement_result = self.add_m(measure_type=measure_type, op_pos=0)
             else:
                 measurement_result = self.__measurements[measure_type][0]["res"]
             self.verbosefprint(self.__measurements[measure_type][0]["str"])
@@ -467,16 +587,66 @@ class measurement_manager:
         self.verbosefprint(self.__measurements[measure_type][op_pos]["str"])
         return measurement_result
 
-    def dummy_measurement(self, measure_type, op_pos, cnots=[]) -> None:
+    def fetch_clean_m(self, measure_type, op_pos) -> ndarray:
+        """Fetches a clean measurement result, denoted by location of and whether the
+        Hadamard/alternate operator has been inverted in the tensor structure.
+
+        Args:
+            measure_type (qutils.m_type): The type of operator used in the tensor
+                structure
+            op_pos (int): The position of the Hadamard in the tensor product, zero
+                indexed from the left.
+
+        Returns:
+            measurement_result (numpy.ndarray):
+        """
+        if measure_type == qutils.m_type.identity:
+            if self.__clean_measurements[measure_type][0] is None:
+                measurement_result = self.add_m(measure_type=measure_type, op_pos=0)
+            else:
+                measurement_result = self.__clean_measurements[measure_type][0]["res"]
+            self.verbosefprint(self.__clean_measurements[measure_type][0]["str"])
+            return measurement_result
+
+        if self.__clean_measurements[measure_type][op_pos] is None:
+            measurement_result = self.add_m(measure_type=measure_type, op_pos=op_pos)
+        else:
+            measurement_result = self.__clean_measurements[measure_type][op_pos]["res"]
+        self.verbosefprint(self.__clean_measurements[measure_type][op_pos]["str"])
+        return measurement_result
+
+    def dummy_measurement(self, measure_type, op_pos, clean=False, cnots=[]) -> None:
         """Stores that a measurement is necessary for this specific configuration.
 
         Args:
             measure_type (qutils.m_type): The type of operator used in the tensor
                 structure
+            clean (boolean): Whether or not to ensure a measurement without Hadamard.
             cnots (list): The position of CNOTs in the tensor structure
             op_pos (int): The position of the Hadamard in the tensor product, zero
                 indexed from the left.
         """
+        if clean:
+            if self.__clean_measurements[measure_type][op_pos] is not None:
+                self.verbosefprint(
+                    self.__clean_measurements[measure_type][op_pos]["str"]
+                )
+                return
+            else:
+                if self.verbose:
+                    state_circuit = self.construct_circuit(
+                        measure_type=measure_type, op_pos=op_pos, cnots=cnots
+                    )
+
+                self.__clean_measurements[measure_type][op_pos] = {
+                    "res": 1,
+                    "str": str(state_circuit) if self.verbose else "",
+                }
+                self.verbosefprint(
+                    self.__clean_measurements[measure_type][op_pos]["str"]
+                )
+                return
+
         if len(cnots) == 0:
             if self.__measurements[measure_type][op_pos] is not None:
                 self.verbosefprint(self.__measurements[measure_type][op_pos]["str"])
@@ -489,7 +659,7 @@ class measurement_manager:
 
                 self.__measurements[measure_type][op_pos] = {
                     "res": 1,
-                    "str": str(state_circuit),
+                    "str": str(state_circuit) if self.verbose else "",
                 }
                 self.verbosefprint(self.__measurements[measure_type][op_pos]["str"])
         else:
@@ -529,6 +699,9 @@ class measurement_manager:
                 if self.__measurements[m][a] is not None:
                     ret += 1
             ret += len(self.__c_measurements[m])
+            for a in range(len(self.__clean_measurements[m])):
+                if self.__clean_measurements[m][a] is not None:
+                    ret += 1
         return ret
 
     def measure_state(self, circuit):
@@ -545,6 +718,7 @@ class measurement_manager:
         if self.execution_type == qutils.execution_type.simulator:
             # Shot-based simulation using AerSimulator
             circuit.measure_all()
+            circuit = transpile(circuit, self.device)
             raw_result = qutils.run_circuit(
                 circuit, shots=self.n_shots, backend=self.device
             )

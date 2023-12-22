@@ -10,6 +10,7 @@ import putils
 import qutils
 import qiskit
 import sys
+import os
 from measurement_manager import measurement_manager
 import configparser
 from qiskit_ibm_runtime import QiskitRuntimeService
@@ -109,18 +110,25 @@ epsilons = [
     5e-3,
     5e-5,
 ]
-VERBOSITY = False
+execution_type = qutils.execution_type.simulator
+VERBOSITY = True
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
-    execution_type=qutils.execution_type.simulator,
+    execution_type=execution_type,
     verbose=VERBOSITY,
 )
-experiment = sys.argv[1] if len(sys.argv) > 1 else 9
+experiment = sys.argv[1] if len(sys.argv) > 1 else 4
 experiment = int(experiment)
 putils.fprint(f"Index: {int(experiment)}")
 putils.fprint(f"Hadamard: {int(experiment) % 2 == 1}")
 putils.fprint(f"Experiment: {int(experiment) // 2}")
-for a in range(512):
+putils.fprint(f"Executing on: {execution_type}")
+
+job_file = "experiment_{}.txt".format(experiment)
+if not os.path.exists(os.path.join("jobs", job_file)):
+    job_file = None
+
+for a in range(512 if execution_type == qutils.execution_type.simulator else 1):
     # put state code here
     state = qiskit.QuantumCircuit(3)
     if experiment < 2:
@@ -163,6 +171,7 @@ for a in range(512):
         tomography_type=qutils.tomography_type.state
         if experiment < 12
         else qutils.tomography_type.process,
+        job_file=job_file,
         state=state,
         verbose=VERBOSITY,
         hadamard=(experiment % 2 == 1),

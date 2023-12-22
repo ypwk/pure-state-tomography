@@ -95,43 +95,48 @@ class tomography:
         DIM = putils.fast_pow(2, mm.n_qubits)
         res = zeros((DIM, 2))
 
-        if (
+        if (  # precise or noisy simulator
             mm.execution_type == qutils.execution_type.statevector
             or mm.execution_type == qutils.execution_type.simulator
         ):
             if hadamard:
-                identity_circuit = mm.construct_circuit(
-                    measure_type=qutils.m_type.identity, op_pos=0
-                )
-                self.identity_res = mm.measure_state(identity_circuit)
-                for a in range(mm.n_qubits):
-                    mm.m_state.h(a)
+                mm.apply_full_hadamard()
+                self.identity_res = mm.add_clean_m(qutils.m_type.identity, 0)
             self.__iter_inf_helper(res, mm, dry=False)
-        else:
+        else:  # ibm qpu
+            if hadamard:  # add hadamard
+                mm.apply_full_hadamard()
+                mm.dummy_measurement(qutils.m_type.identity, 0, clean=True)
             if job_file is None:
-                if hadamard:  # add hadamard
-                    mm.dummy_measurement(qutils.m_type.identity, 1)
-                    for a in range(mm.n_qubits):
-                        mm.m_state.h(a)
-                self.identity_res = mm.fetch_m(qutils.m_type.identity, 1)
                 mm.dummy_measurement(qutils.m_type.identity, 0)
                 mm.to_job_file()
                 self.verbosefprint(
-                    "Number of unitary operators applied: {}. Need more!".format(
+                    "{} unitary operators applied. Need more!".format(
                         mm.num_measurements
                     ),
                 )
                 return
             else:
                 measurement_count = mm.consume_job_file(job_file)
+                if hadamard:
+                    self.identity_res = mm.fetch_clean_m(qutils.m_type.identity, 0)
+                else:
+                    self.identity_res = mm.fetch_m(qutils.m_type.identity, 0)
                 self.__iter_inf_helper(res, mm, dry=True)
                 if len(mm) > measurement_count:
                     mm.to_job_file()
-                    self.verbosefprint(
-                        "Number of unitary operators applied: {}. Need more!".format(
-                            mm.num_measurements
-                        ),
-                    )
+                    if len(mm) == measurement_count + mm.num_measurements:
+                        self.verbosefprint(
+                            "{} unitary operators applied. No more needed.".format(
+                                mm.num_measurements
+                            ),
+                        )
+                    else:
+                        self.verbosefprint(
+                            "{} unitary operators applied. Need more!".format(
+                                mm.num_measurements
+                            ),
+                        )
                     return
                 else:
                     res = zeros((DIM, 2))
@@ -344,8 +349,8 @@ class tomography:
                 )
             )
             if dry:
-                mm.dummy_measurement(qutils.m_type.real_hadamard, op_pos, cnots)
-                mm.dummy_measurement(qutils.m_type.cmplx_hadamard, op_pos, cnots)
+                mm.dummy_measurement(qutils.m_type.real_hadamard, op_pos, cnots=cnots)
+                mm.dummy_measurement(qutils.m_type.cmplx_hadamard, op_pos, cnots=cnots)
             else:
                 if len(cnots) == 0:
                     real_m = mm.fetch_m(qutils.m_type.real_hadamard, op_pos)
