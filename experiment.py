@@ -110,7 +110,7 @@ epsilons = [
     5e-3,
     5e-5,
 ]
-execution_type = qutils.execution_type.simulator
+execution_type = qutils.execution_type.ibm_qpu
 VERBOSITY = True
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
