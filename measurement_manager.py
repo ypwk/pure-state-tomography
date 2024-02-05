@@ -102,7 +102,7 @@ class measurement_manager:
             api_token = cp.get("IBM", "token")
 
         provider = IBMProvider(token=api_token)
-        self.device = provider.get_backend("ibm_osaka")
+        self.device = provider.get_backend("ibm_brisbane")
         self.session = Session(backend=self.device)
 
     def set_state(
@@ -718,7 +718,7 @@ class measurement_manager:
         if self.execution_type == qutils.execution_type.simulator:
             # Shot-based simulation using AerSimulator
             circuit.measure_all()
-            circuit = transpile(circuit, self.device)
+            circuit = transpile(circuit, self.device, optimization_level=0)
             raw_result = qutils.run_circuit(
                 circuit, shots=self.n_shots, backend=self.device
             )
@@ -737,7 +737,7 @@ class measurement_manager:
                 )
         elif self.execution_type == qutils.execution_type.ibm_qpu:
             circuit.measure_all()
-            transpiled_circuit = transpile(circuit, self.device)
+            transpiled_circuit = transpile(circuit, self.device, optimization_level=0)
             res = execute(
                 transpiled_circuit, backend=self.device, shots=self.n_shots
             ).job_id()
