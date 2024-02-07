@@ -118,5 +118,42 @@ def fprint(*args, filename=FILENAME, mode="a", **kwargs):
         print(*args, file=file, **kwargs)
 
 
+def make_fprint(filename=None):
+    """
+    Function factory to create a version of fprint with a specific filename.
+
+    Args:
+        filename (str): Optional. The base name of the file to write to. If not specified,
+                        it uses a default pattern based on the current datetime.
+
+    Returns:
+        A customized fprint function that writes to the specified filename.
+    """
+    if filename is None:
+        # If no filename is given, use a default name with the current datetime
+        filename = "log_{}.txt".format(dt.now().strftime("%Y_%m_%dT_%H_%M_%S"))
+
+    def fprint(*args, mode="a", **kwargs):
+        """
+        Wrapper for the print function that prints to console and writes to a file
+        simultaneously, using the specified filename from the outer function.
+
+        Args:
+            *args: Positional arguments for the print function.
+            mode (str): File mode for writing (default is 'a' for append).
+            **kwargs: Keyword arguments for the print function.
+        """
+        file_path = os.path.join("logs", filename)
+
+        if not os.path.isdir("logs"):
+            os.mkdir("logs")
+
+        with open(file_path, mode, encoding="utf-8") as file:
+            # print(*args, **kwargs)
+            print(*args, file=file, **kwargs)
+
+    return fprint
+
+
 __author__ = "Kevin Wu"
 __credits__ = ["Kevin Wu"]

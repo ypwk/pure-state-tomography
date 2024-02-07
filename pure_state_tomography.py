@@ -50,6 +50,7 @@ class tomography:
         self,
         mm: measurement_manager,
         tomography_type: qutils.tomography_type,
+        out_file: str,
         verbose: bool = False,
         job_file: str = None,
         hadamard: bool = False,
@@ -64,6 +65,7 @@ class tomography:
             mm (measurement_manager): An instance of the measurement manager that
                                     handles quantum measurements and operations.
             tomography_type (qutils.tomography_type): Type of tomography.
+            out_file (str): File to output to.
             verbose (bool, optional): If set to True, the function will print detailed
                                     information about the tomography process. Defaults
                                     to False.
@@ -86,7 +88,8 @@ class tomography:
 
         See experiment.ipynb for example usage.
         """
-        self.verbosefprint = putils.fprint if verbose else lambda *a, **k: None
+        self.fprint = putils.make_fprint(out_file)
+        self.verbosefprint = self.fprint if verbose else lambda *a, **k: None
         self.verboseprint = print if verbose else lambda *a, **k: None
 
         self.n_qubits = mm.n_qubits

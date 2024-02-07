@@ -5,6 +5,7 @@ from numpy import (
     pi,
     sqrt,
 )
+from tqdm import tqdm
 import configparser
 import sys
 import os
@@ -29,18 +30,62 @@ QiskitRuntimeService.save_account(
 talg = tomography()
 
 
+def make_state(experiment_num: int):
+    state = qiskit.QuantumCircuit(3)
+    if experiment_num < 2:
+        state.h(0)
+    elif experiment_num < 4:
+        state.h(2)
+        state.x(2)
+        state.cx(2, 1)
+    elif experiment_num < 6:
+        state.h(2)
+        state.x(2)
+        state.cx(2, 1)
+        state.cx(2, 0)
+    elif experiment_num < 8:
+        state.u(pi / 4, 0, 0, 1)
+        state.u(pi / 4, 0, 0, 2)
+        state.cx(2, 1)
+        state.h(2)
+    elif experiment_num < 10:
+        state.u(pi / 4, 0, 0, 1)
+        state.u(pi / 4, 0, 0, 2)
+        state.cx(1, 2)
+        state.h(1)
+        state.cx(1, 0)
+    elif experiment_num < 12:
+        state.u(pi / 4, 0, 0, 1)
+        state.u(pi / 4, 0, 0, 2)
+        state.cx(2, 1)
+        state.h(2)
+        state.cx(1, 0)
+        state.cx(2, 1)
+    else:
+        state.h(0)
+        state.h(1)
+        state.h(2)
+        state.x(0)
+        state.u(pi / 4, 0, 0, 2)
+    return state
+
+
 def run(
     mm: measurement_manager,
     tomography_type: qutils.tomography_type,
     state: ndarray | qiskit.QuantumCircuit,
+    experiment_num: int,
     verbose: bool = True,
     job_file: str = None,
     hadamard: bool = False,
     epsilon: float = 5e-2,
 ):
-    putils.fprint("Running inference at {} shots\n".format(mm.n_shots))
+    fprint = putils.make_fprint(
+        f"experiment_{experiment_num}_{execution_type.name}.txt"
+    )
 
     # reset measurement manager state
+    mm.fprint = fprint
     mm.set_state(tomography_type=tomography_type, state=state)
 
     if type(state) is qiskit.QuantumCircuit:
@@ -50,6 +95,7 @@ def run(
     res = talg.pure_state_tomography(
         mm=mm,
         tomography_type=tomography_type,
+        out_file=f"experiment_{experiment_num}_{execution_type.name}.txt",
         verbose=verbose,
         job_file=job_file,
         hadamard=hadamard,
@@ -66,12 +112,12 @@ def run(
                         state.shape[0],
                     ),
                 ).T * sqrt(state.shape[0])
-            putils.fprint(
+            fprint(
                 "Reconstructed {}:\n{}".format(
                     "vector" if state.ndim == 1 else "matrix", res
                 )
             )
-            putils.fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
+            fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
         elif type(state) is qiskit.QuantumCircuit:
             if tomography_type is qutils.tomography_type.process:
                 state = qutils.circuit_to_unitary(state)
@@ -84,18 +130,18 @@ def run(
                 ).T * sqrt(state.shape[0])
             else:
                 state = qutils.circuit_to_statevector(state)
-            putils.fprint(
+            fprint(
                 "Original {}:\n{}".format(
                     "vector" if state.ndim == 1 else "matrix", state
                 )
             )
-            putils.fprint(
+            fprint(
                 "Reconstructed {}:\n{}".format(
                     "vector" if state.ndim == 1 else "matrix", res
                 )
             )
 
-            putils.fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
+            fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
 
 
 epsilons = [
@@ -113,72 +159,75 @@ epsilons = [
     5e-3,
     5e-5,
 ]
-execution_type = qutils.execution_type.simulator
+
+execution_type = qutils.execution_type.ibm_qpu
+
+experiment = sys.argv[1] if len(sys.argv) > 1 else 4
+experiment = int(experiment)
+
 VERBOSITY = True
+
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
     execution_type=execution_type,
+    out_file=f"experiment_{experiment}_{execution_type.name}.txt",
     verbose=VERBOSITY,
 )
-experiment = sys.argv[1] if len(sys.argv) > 1 else 4
-experiment = int(experiment)
-putils.fprint(f"Index: {int(experiment)}")
-putils.fprint(f"Hadamard: {int(experiment) % 2 == 1}")
-putils.fprint(f"Experiment: {int(experiment) // 2}")
-putils.fprint(f"Executing on: {execution_type}")
 
 job_file = "experiment_{}.txt".format(experiment)
 if not os.path.exists(os.path.join("jobs", job_file)):
     job_file = None
 
-for exp in range(len(epsilons)):
-    experiment = exp
-    for a in range(128 if execution_type == qutils.execution_type.simulator else 1):
-        # put state code here
-        state = qiskit.QuantumCircuit(3)
-        if experiment < 2:
-            state.h(0)
-        elif experiment < 4:
-            state.h(2)
-            state.x(2)
-            state.cx(2, 1)
-        elif experiment < 6:
-            state.h(2)
-            state.x(2)
-            state.cx(2, 1)
-            state.cx(2, 0)
-        elif experiment < 8:
-            state.u(pi / 4, 0, 0, 1)
-            state.u(pi / 4, 0, 0, 2)
-            state.cx(2, 1)
-            state.h(2)
-        elif experiment < 10:
-            state.u(pi / 4, 0, 0, 1)
-            state.u(pi / 4, 0, 0, 2)
-            state.cx(1, 2)
-            state.h(1)
-            state.cx(1, 0)
-        elif experiment < 12:
-            state.u(pi / 4, 0, 0, 1)
-            state.u(pi / 4, 0, 0, 2)
-            state.cx(2, 1)
-            state.h(2)
-            state.cx(1, 0)
-            state.cx(2, 1)
-        else:
-            state.h(0)
-            state.h(1)
-            state.h(2)
-            state.x(0)
-            state.u(pi / 4, 0, 0, 2)
-        run(
-            mm=mm,
-            tomography_type=qutils.tomography_type.state
+
+if execution_type is qutils.execution_type.ibm_qpu:
+    state = make_state(experiment)
+    fprint = putils.make_fprint(f"experiment_{experiment}_{execution_type.name}.txt")
+    fprint(f"Index: {int(experiment)}")
+    fprint(f"Hadamard: {int(experiment) % 2 == 1}")
+    fprint(f"Experiment: {int(experiment) // 2}")
+    fprint(f"Executing on: {execution_type}")
+    fprint("Running inference at {} shots\n".format(mm.n_shots))
+
+    run(
+        mm=mm,
+        tomography_type=(
+            qutils.tomography_type.state
             if experiment < 12
-            else qutils.tomography_type.process,
-            job_file=job_file,
-            state=state,
-            verbose=VERBOSITY,
-            hadamard=(experiment % 2 == 1),
-            epsilon=epsilons[experiment],
+            else qutils.tomography_type.process
+        ),
+        experiment_num=experiment,
+        job_file=job_file,
+        state=state,
+        verbose=VERBOSITY,
+        hadamard=(experiment % 2 == 1),
+        epsilon=epsilons[experiment],
+    )
+else:
+    for exp in range(len(epsilons)):
+        experiment = exp
+
+        fprint = putils.make_fprint(
+            f"experiment_{experiment}_{execution_type.name}.txt"
         )
+        fprint(f"Index: {int(experiment)}")
+        fprint(f"Hadamard: {int(experiment) % 2 == 1}")
+        fprint(f"Experiment: {int(experiment) // 2}")
+        fprint(f"Executing on: {execution_type}")
+        fprint("Running inference at {} shots\n".format(mm.n_shots))
+
+        for a in tqdm(range(512)):
+            state = make_state(experiment)
+            run(
+                mm=mm,
+                tomography_type=(
+                    qutils.tomography_type.state
+                    if experiment < 12
+                    else qutils.tomography_type.process
+                ),
+                experiment_num=experiment,
+                job_file=job_file,
+                state=state,
+                verbose=VERBOSITY,
+                hadamard=(experiment % 2 == 1),
+                epsilon=epsilons[experiment],
+            )

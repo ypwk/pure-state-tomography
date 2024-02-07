@@ -5,7 +5,7 @@
 ### 000, 001
 
 - Normal Job File: job_2024_02_05T_01_34_03.txt
-- Hadamard Job File: job_2024_02_05T_01_34_32.txt
+- Hadamard Job File: job_2024_02_05T_01_51_24.txt
 - Circuit:
 
 ```
@@ -15,7 +15,7 @@ state.h(0)
 
 ### 000, 110
 
-- Normal Job File: job_2024_02_05T_01_37_23.txt
+- Normal Job File:
 - Hadamard Job File:
 - Circuit:
 

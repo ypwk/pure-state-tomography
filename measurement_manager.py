@@ -31,7 +31,11 @@ class measurement_manager:
     # TODO: Implement main memory friendly version for applications at scale.
 
     def __init__(
-        self, n_shots: int, execution_type: qutils.execution_type, verbose: bool
+        self,
+        n_shots: int,
+        execution_type: qutils.execution_type,
+        out_file: str,
+        verbose: bool,
     ) -> None:
         """
         Initializes an instance of measurement manager, setting up the required
@@ -45,6 +49,7 @@ class measurement_manager:
             execution_type (qutils.execution_type): Specifies the type of execution
                         environment for the quantum operations (e.g., quantum processor,
                         simulator, statevector).
+            out_file (str): filename to output to.
             verbose (bool): If set to True, enables detailed logging for the operations
                             performed by this instance. If False, logging is minimal.
 
@@ -88,7 +93,9 @@ class measurement_manager:
         self.num_measurements = 0
         self.my_job_file = None
 
-        self.verbosefprint = putils.fprint if verbose else lambda *a, **k: None
+        self.fprint = putils.make_fprint(out_file)
+
+        self.verbosefprint = self.fprint if verbose else lambda *a, **k: None
         self.verboseprint = print if verbose else lambda *a, **k: None
 
         self.__measurements = None
@@ -111,21 +118,21 @@ class measurement_manager:
         """Sets the state for this measurement manager."""
         if type(state) is ndarray:
             if tomography_type is qutils.tomography_type.state:
-                putils.fprint("Input vector: {}".format(state), flush=True)
+                self.fprint("Input vector: {}".format(state), flush=True)
                 self.n_qubits = putils.fast_log2(len(state))
                 self.m_state = qutils.create_vector_circuit(state, self.n_qubits)
             elif tomography_type is qutils.tomography_type.process:
                 if state.shape[0] != state.shape[1]:
                     raise Exception
-                putils.fprint("Input matrix:\n{}".format(state), flush=True)
+                self.fprint("Input matrix:\n{}".format(state), flush=True)
                 self.n_qubits = putils.fast_log2(state.shape[0]) * 2
                 self.m_state = qutils.create_matrix_circuit(state, self.n_qubits)
         elif type(state) is QuantumCircuit:
             if tomography_type is qutils.tomography_type.state:
-                putils.fprint("Input circuit:\n{}".format(str(state)), flush=True)
+                self.fprint("Input circuit:\n{}".format(str(state)), flush=True)
                 self.n_qubits = state.num_qubits
                 self.m_state = state
-                putils.fprint(
+                self.fprint(
                     "Statevector:\n{}".format(
                         qutils.circuit_to_statevector(self.m_state)
                     )
@@ -246,6 +253,7 @@ class measurement_manager:
                             self.verbosefprint(
                                 "Concurrent Job Limit reached! Stopping..."
                             )
+                            return
                         finally:
                             f.write(
                                 "{}:{}:{}:{}\n".format(
@@ -421,9 +429,9 @@ class measurement_manager:
                             "cnots": cnots,
                             "op_pos": op_pos,
                             "data": res,
-                            "str": None
-                            if self.verbose is False
-                            else str(state_circuit),
+                            "str": (
+                                None if self.verbose is False else str(state_circuit)
+                            ),
                         }
                     )
 
@@ -718,7 +726,7 @@ class measurement_manager:
         if self.execution_type == qutils.execution_type.simulator:
             # Shot-based simulation using AerSimulator
             circuit.measure_all()
-            circuit = transpile(circuit, self.device, optimization_level=0)
+            circuit = transpile(circuit, self.device, optimization_level=1)
             raw_result = qutils.run_circuit(
                 circuit, shots=self.n_shots, backend=self.device
             )
@@ -737,7 +745,7 @@ class measurement_manager:
                 )
         elif self.execution_type == qutils.execution_type.ibm_qpu:
             circuit.measure_all()
-            transpiled_circuit = transpile(circuit, self.device, optimization_level=0)
+            transpiled_circuit = transpile(circuit, self.device, optimization_level=1)
             res = execute(
                 transpiled_circuit, backend=self.device, shots=self.n_shots
             ).job_id()
