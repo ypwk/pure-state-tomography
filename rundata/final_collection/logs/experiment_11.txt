@@ -1,0 +1,8 @@
+cq26aj2d7we0008jc2k0:m_type.identity:0:c
+cq26ajaph3s00088vt80:m_type.identity:0:
+cq26fbn7z1hg008qmzgg:m_type.real_hadamard:0:
+cq26fbxdhsd0008ebahg:m_type.real_hadamard:1:
+cq26fbxdhsd0008ebahg:m_type.real_hadamard:2:
+cq2rtd1ph3s00088wzjg:m_type.cmplx_hadamard:0:
+cq2rtd1ph3s00088wzjg:m_type.cmplx_hadamard:1:
+cq2t9pp7z1hg008fnmf0:m_type.cmplx_hadamard:2:

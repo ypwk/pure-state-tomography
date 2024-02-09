@@ -1,0 +1,8 @@
+cq08awbd7we0008dttzg:m_type.identity:0:c
+cq08awvd7we0008dtv0g:m_type.identity:0:
+cq0p3f5ph3s0008fntk0:m_type.real_hadamard:0:
+cq0smc9dhsd0008e6kdg:m_type.real_hadamard:1:
+cq0smchph3s0008fp2s0:m_type.real_hadamard:2:
+cq0smdsd7we0008qz6g0:m_type.cmplx_hadamard:0:
+cq0xkx7d7we0008paaxg:m_type.cmplx_hadamard:1:
+cq0xkxqdhsd0008e6txg:m_type.cmplx_hadamard:2:

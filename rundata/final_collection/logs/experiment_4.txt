@@ -1,0 +1,3 @@
+cq1g15mdhsd0008e82mg:m_type.identity:0:
+cq1jsxz7z1hg008j7a90:m_type.real_hadamard:0:[0, 1],[0, 2]
+cq1jsy77z1hg008j7a9g:m_type.cmplx_hadamard:0:[0, 1],[0, 2]

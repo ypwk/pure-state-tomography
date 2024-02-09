@@ -1,0 +1,6 @@
+cq1e3bxhbttg008j9b7g:m_type.identity:0:c
+cq1g0pjdhsd0008e82m0:m_type.identity:0:
+cq1jjpjdhsd0008e8ep0:m_type.real_hadamard:2:
+cq1jjptph3s0008fr2p0:m_type.real_hadamard:0:[0, 1]
+cq1jjqad7we000850910:m_type.cmplx_hadamard:2:
+cq1js0cd7we000850adg:m_type.cmplx_hadamard:0:[0, 1]
