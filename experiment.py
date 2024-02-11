@@ -160,7 +160,7 @@ epsilons = [
     5e-5,
 ]
 
-execution_type = qutils.execution_type.ibm_qpu
+execution_type = qutils.execution_type.statevector
 
 experiment = sys.argv[1] if len(sys.argv) > 1 else 4
 experiment = int(experiment)
@@ -215,7 +215,7 @@ else:
         fprint(f"Executing on: {execution_type}")
         fprint("Running inference at {} shots\n".format(mm.n_shots))
 
-        for a in tqdm(range(512)):
+        for a in tqdm(range(1)):
             state = make_state(experiment)
             run(
                 mm=mm,
