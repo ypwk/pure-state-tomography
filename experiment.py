@@ -66,8 +66,8 @@ def make_state(experiment_num: int):
         # state.x(0)
         # state.y(1)
         # state.cx(1, 0)
-        state.h(0)
-        state.u(pi / 4, 0, 0, 1)
+        state.ry(pi / 3, 0)
+        state.rx(pi / 4, 1)
         state.cx(0, 1)
     return state
 

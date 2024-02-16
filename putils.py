@@ -149,7 +149,7 @@ def make_fprint(filename=None):
             os.mkdir("logs")
 
         with open(file_path, mode, encoding="utf-8") as file:
-            print(*args, **kwargs)
+            # print(*args, **kwargs)
             print(*args, file=file, **kwargs)
 
     return fprint
