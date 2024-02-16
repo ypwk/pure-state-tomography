@@ -62,11 +62,13 @@ def make_state(experiment_num: int):
         state.cx(1, 0)
         state.cx(2, 1)
     else:
+        state = qiskit.QuantumCircuit(2)
+        # state.x(0)
+        # state.y(1)
+        # state.cx(1, 0)
         state.h(0)
-        state.h(1)
-        state.h(2)
-        state.x(0)
-        state.u(pi / 4, 0, 0, 2)
+        state.u(pi / 4, 0, 0, 1)
+        state.cx(0, 1)
     return state
 
 
@@ -160,12 +162,12 @@ epsilons = [
     5e-5,
 ]
 
-execution_type = qutils.execution_type.ibm_qpu
+execution_type = qutils.execution_type.simulator
 
-experiment = sys.argv[1] if len(sys.argv) > 1 else 4
+experiment = sys.argv[1] if len(sys.argv) > 1 else 12
 experiment = int(experiment)
 
-VERBOSITY = True
+VERBOSITY = False
 
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
@@ -203,9 +205,7 @@ if execution_type is qutils.execution_type.ibm_qpu:
         epsilon=epsilons[experiment],
     )
 else:
-    for exp in range(len(epsilons)):
-        experiment = exp
-
+    if experiment is not None:
         fprint = putils.make_fprint(
             f"experiment_{experiment}_{execution_type.name}.txt"
         )
@@ -231,3 +231,32 @@ else:
                 hadamard=(experiment % 2 == 1),
                 epsilon=epsilons[experiment],
             )
+    else:
+        for exp in range(len(epsilons)):
+            experiment = exp
+
+            fprint = putils.make_fprint(
+                f"experiment_{experiment}_{execution_type.name}.txt"
+            )
+            fprint(f"Index: {int(experiment)}")
+            fprint(f"Hadamard: {int(experiment) % 2 == 1}")
+            fprint(f"Experiment: {int(experiment) // 2}")
+            fprint(f"Executing on: {execution_type}")
+            fprint("Running inference at {} shots\n".format(mm.n_shots))
+
+            for a in tqdm(range(512)):
+                state = make_state(experiment)
+                run(
+                    mm=mm,
+                    tomography_type=(
+                        qutils.tomography_type.state
+                        if experiment < 12
+                        else qutils.tomography_type.process
+                    ),
+                    experiment_num=experiment,
+                    job_file=job_file,
+                    state=state,
+                    verbose=VERBOSITY,
+                    hadamard=(experiment % 2 == 1),
+                    epsilon=epsilons[experiment],
+                )
