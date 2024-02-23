@@ -18,7 +18,7 @@ import re
 from qiskit import transpile, execute, QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit_ibm_provider import IBMProvider
-from qiskit_ibm_runtime import QiskitRuntimeService, Session
+from qiskit_ibm_runtime import QiskitRuntimeService
 
 import configparser
 import putils
@@ -110,7 +110,8 @@ class measurement_manager:
 
         provider = IBMProvider(token=api_token)
         self.device = provider.get_backend("ibm_brisbane")
-        self.session = Session(backend=self.device)
+        if self.execution_type == qutils.execution_type.simulator:
+            self.aer_sim = AerSimulator.from_backend(self.device)
 
     def set_state(
         self, tomography_type: qutils.tomography_type, state: ndarray | QuantumCircuit
@@ -726,9 +727,8 @@ class measurement_manager:
         if self.execution_type == qutils.execution_type.simulator:
             # Shot-based simulation using AerSimulator
             circuit.measure_all()
-            circuit = transpile(circuit, self.device, optimization_level=1)
             raw_result = qutils.run_circuit(
-                circuit, shots=self.n_shots, backend=self.device
+                self.aer_sim, circuit, shots=self.n_shots, backend=self.device
             )
             for key in raw_result.keys():
                 res[int(key, 2)] = raw_result[key] / self.n_shots

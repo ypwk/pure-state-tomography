@@ -134,7 +134,7 @@ def create_matrix_circuit(state, n_qubits) -> QuantumCircuit:
     return qc
 
 
-def run_circuit(qc, shots=1024, backend=None) -> result.counts.Counts:
+def run_circuit(aer_sim, qc, shots=1024, backend=None) -> result.counts.Counts:
     """Runs the circuit on the simulator
 
     Args:
@@ -145,8 +145,7 @@ def run_circuit(qc, shots=1024, backend=None) -> result.counts.Counts:
     Returns:
         numpy.ndarray: An array of result counts
     """
-    aer_sim = AerSimulator.from_backend(backend)
-    t_qc = transpile(qc, aer_sim)
+    t_qc = transpile(qc, aer_sim, optimization_level=1)
     result = aer_sim.run(t_qc, shots=shots).result()
     return result.get_counts(qc)
 

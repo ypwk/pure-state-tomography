@@ -20,17 +20,6 @@ import qutils
 from measurement_manager import measurement_manager
 from pure_state_tomography import tomography
 
-# read in configuration details
-with open("config.ini", "r") as cf:
-    confp = configparser.ConfigParser()
-    confp.read_file(cf)
-    api_token = confp.get("IBM", "token")
-QiskitRuntimeService.save_account(
-    channel="ibm_quantum", token=api_token, overwrite=True
-)
-
-talg = tomography()
-
 
 def make_state(experiment_num: int):
     state = qiskit.QuantumCircuit(3)
@@ -97,6 +86,14 @@ def make_state(experiment_num: int):
         state.cx(1, 0)
         state.cx(1, 2)
     return state
+
+
+def print_header(fprint, experiment, execution_type, mm):
+    fprint(f"Index: {int(experiment)}")
+    fprint(f"Hadamard: {int(experiment) % 2 == 1}")
+    fprint(f"Experiment: {int(experiment) // 2}")
+    fprint(f"Executing on: {execution_type}")
+    fprint("Running inference at {} shots\n".format(mm.n_shots))
 
 
 def run(
@@ -188,6 +185,18 @@ def run(
             )
 
 
+# read in configuration details
+with open("config.ini", "r") as cf:
+    confp = configparser.ConfigParser()
+    confp.read_file(cf)
+    api_token = confp.get("IBM", "token")
+QiskitRuntimeService.save_account(
+    channel="ibm_quantum", token=api_token, overwrite=True
+)
+
+
+talg = tomography()
+
 epsilons = [
     5e-2,
     5e-3,
@@ -219,6 +228,7 @@ experiment = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
 VERBOSITY = False
 
+
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
     execution_type=execution_type,
@@ -234,12 +244,7 @@ if not os.path.exists(os.path.join("jobs", job_file)):
 if execution_type is qutils.execution_type.ibm_qpu:
     state = make_state(experiment)
     fprint = putils.make_fprint(f"experiment_{experiment}_{execution_type.name}.txt")
-    fprint(f"Index: {int(experiment)}")
-    fprint(f"Hadamard: {int(experiment) % 2 == 1}")
-    fprint(f"Experiment: {int(experiment) // 2}")
-    fprint(f"Executing on: {execution_type}")
-    fprint("Running inference at {} shots\n".format(mm.n_shots))
-
+    print_header(fprint, experiment, execution_type, mm)
     run(
         mm=mm,
         tomography_type=(
@@ -259,13 +264,9 @@ else:
         fprint = putils.make_fprint(
             f"experiment_{experiment}_{execution_type.name}.txt"
         )
-        fprint(f"Index: {int(experiment)}")
-        fprint(f"Hadamard: {int(experiment) % 2 == 1}")
-        fprint(f"Experiment: {int(experiment) // 2}")
-        fprint(f"Executing on: {execution_type}")
-        fprint("Running inference at {} shots\n".format(mm.n_shots))
+        print_header(fprint, experiment, execution_type, mm)
 
-        for a in tqdm(range(512)):
+        for a in tqdm(range(1)):
             state = make_state(experiment)
             run(
                 mm=mm,
@@ -291,11 +292,7 @@ else:
             fprint = putils.make_fprint(
                 f"experiment_{experiment}_{execution_type.name}.txt"
             )
-            fprint(f"Index: {int(experiment)}")
-            fprint(f"Hadamard: {int(experiment) % 2 == 1}")
-            fprint(f"Experiment: {int(experiment) // 2}")
-            fprint(f"Executing on: {execution_type}")
-            fprint("Running inference at {} shots\n".format(mm.n_shots))
+            print_header(fprint, experiment, execution_type, mm)
 
             for a in tqdm(range(512)):
                 state = make_state(experiment)
