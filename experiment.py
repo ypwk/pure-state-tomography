@@ -5,6 +5,8 @@ from numpy import (
     pi,
     sqrt,
 )
+import numpy as np
+from scipy.optimize import minimize
 from tqdm import tqdm
 import configparser
 import sys
@@ -20,9 +22,9 @@ from pure_state_tomography import tomography
 
 # read in configuration details
 with open("config.ini", "r") as cf:
-    cp = configparser.ConfigParser()
-    cp.read_file(cf)
-    api_token = cp.get("IBM", "token")
+    confp = configparser.ConfigParser()
+    confp.read_file(cf)
+    api_token = confp.get("IBM", "token")
 QiskitRuntimeService.save_account(
     channel="ibm_quantum", token=api_token, overwrite=True
 )
@@ -61,7 +63,7 @@ def make_state(experiment_num: int):
         state.h(2)
         state.cx(1, 0)
         state.cx(2, 1)
-    else:
+    elif experiment_num < 14:
         state = qiskit.QuantumCircuit(2)
         # state.x(0)
         # state.y(1)
@@ -69,6 +71,31 @@ def make_state(experiment_num: int):
         state.ry(pi / 3, 0)
         state.rx(pi / 4, 1)
         state.cx(0, 1)
+    elif experiment_num < 16:  # 0000, 1111
+        state = qiskit.QuantumCircuit(4)
+        state.h(0)
+        state.cx(0, 1)
+        state.cx(1, 2)
+        state.cx(2, 3)
+    elif experiment_num < 18:  # 011 100
+        state = qiskit.QuantumCircuit(3)
+        state.h(0)
+        state.x(2)
+        state.cx(0, 1)
+        state.cx(1, 2)
+    elif experiment_num < 20:  # 00000, 11111
+        state = qiskit.QuantumCircuit(5)
+        state.h(0)
+        state.cx(0, 1)
+        state.cx(1, 2)
+        state.cx(2, 3)
+        state.cx(3, 4)
+    elif experiment_num < 22:  # 110 001
+        state = qiskit.QuantumCircuit(3)
+        state.h(1)
+        state.x(0)
+        state.cx(1, 0)
+        state.cx(1, 2)
     return state
 
 
@@ -143,7 +170,22 @@ def run(
                 )
             )
 
-            fprint("% Error: {}\n".format(100 * linalg.norm(state - res)))
+            def objective(theta):
+                rotated_res = res * (np.cos(theta) + 1j * np.sin(theta))
+                return np.linalg.norm(state - rotated_res)
+
+            theta_initial = 0.0
+            result = minimize(objective, theta_initial)
+            optimal_theta = result.x[0]
+
+            rotated_res = res * (np.cos(optimal_theta) + 1j * np.sin(optimal_theta))
+
+            fprint(
+                "% Error: {}, theta: {}\n".format(
+                    100 * linalg.norm(state - rotated_res),
+                    optimal_theta,
+                )
+            )
 
 
 epsilons = [
@@ -160,12 +202,20 @@ epsilons = [
     5e-2,
     5e-3,
     5e-5,
+    5e-5,
+    5e-2,  # 0000 1111
+    5e-5,
+    5e-2,  # 011 100
+    5e-5,
+    5e-2,  # 00000, 11111
+    5e-5,
+    5e-2,  # 110 011
+    5e-5,
 ]
 
 execution_type = qutils.execution_type.simulator
 
-experiment = sys.argv[1] if len(sys.argv) > 1 else 12
-experiment = int(experiment)
+experiment = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
 VERBOSITY = False
 
@@ -194,7 +244,7 @@ if execution_type is qutils.execution_type.ibm_qpu:
         mm=mm,
         tomography_type=(
             qutils.tomography_type.state
-            if experiment < 12
+            if experiment != 12
             else qutils.tomography_type.process
         ),
         experiment_num=experiment,
@@ -221,7 +271,7 @@ else:
                 mm=mm,
                 tomography_type=(
                     qutils.tomography_type.state
-                    if experiment < 12
+                    if experiment != 12
                     else qutils.tomography_type.process
                 ),
                 experiment_num=experiment,
@@ -233,6 +283,9 @@ else:
             )
     else:
         for exp in range(len(epsilons)):
+            if exp == 13:
+                continue
+
             experiment = exp
 
             fprint = putils.make_fprint(
@@ -250,7 +303,7 @@ else:
                     mm=mm,
                     tomography_type=(
                         qutils.tomography_type.state
-                        if experiment < 12
+                        if experiment != 12
                         else qutils.tomography_type.process
                     ),
                     experiment_num=experiment,
