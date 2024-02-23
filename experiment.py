@@ -282,7 +282,7 @@ else:
                 epsilon=epsilons[experiment],
             )
     else:
-        for exp in range(len(epsilons)):
+        for exp in range(20, len(epsilons)):
             if exp == 13:
                 continue
 
