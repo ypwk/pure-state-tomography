@@ -74,6 +74,9 @@ def infer_target(target_idx, source_idx, source_val, h_measure, v_measure) -> nd
     Returns: numpy.ndarray
     """
 
+    if source_val[0] * source_val[0] - source_val[1] * source_val[1] == 0:
+        source_val[1] += 0.00000001
+
     res = array([0.0, 0.0])
     if target_idx < source_idx:  # backwards
         res[0] = (

@@ -6,7 +6,6 @@ from numpy import (
     sqrt,
 )
 import numpy as np
-from scipy.optimize import minimize
 from tqdm import tqdm
 import configparser
 import sys
@@ -88,6 +87,11 @@ def make_state(experiment_num: int):
     return state
 
 
+def calculate_fidelity(ideal, actual):
+    inner_product = np.vdot(ideal, actual)
+    return np.abs(inner_product)
+
+
 def print_header(fprint, experiment, execution_type, mm):
     fprint(f"Index: {int(experiment)}")
     fprint(f"Hadamard: {int(experiment) % 2 == 1}")
@@ -166,23 +170,7 @@ def run(
                     "vector" if state.ndim == 1 else "matrix", res
                 )
             )
-
-            def objective(theta):
-                rotated_res = res * (np.cos(theta) + 1j * np.sin(theta))
-                return np.linalg.norm(state - rotated_res)
-
-            theta_initial = 0.0
-            result = minimize(objective, theta_initial)
-            optimal_theta = result.x[0]
-
-            rotated_res = res * (np.cos(optimal_theta) + 1j * np.sin(optimal_theta))
-
-            fprint(
-                "% Error: {}, theta: {}\n".format(
-                    100 * linalg.norm(state - rotated_res),
-                    optimal_theta,
-                )
-            )
+            fprint(f"Fidelity: {calculate_fidelity(state, res)}")
 
 
 # read in configuration details
@@ -266,7 +254,7 @@ else:
         )
         print_header(fprint, experiment, execution_type, mm)
 
-        for a in tqdm(range(1)):
+        for a in tqdm(range(512)):
             state = make_state(experiment)
             run(
                 mm=mm,
@@ -283,7 +271,7 @@ else:
                 epsilon=epsilons[experiment],
             )
     else:
-        for exp in range(20, len(epsilons)):
+        for exp in range(len(epsilons)):
             if exp == 13:
                 continue
 
