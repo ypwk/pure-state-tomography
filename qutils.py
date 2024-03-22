@@ -74,30 +74,27 @@ def infer_target(target_idx, source_idx, source_val, h_measure, v_measure) -> nd
     Returns: numpy.ndarray
     """
 
-    if source_val[0] * source_val[0] - source_val[1] * source_val[1] == 0:
-        source_val[1] += 0.00000001
-
     res = array([0.0, 0.0])
     if target_idx < source_idx:  # backwards
         res[0] = (
-            source_val[1] * (v_measure[source_idx] - v_measure[target_idx])
-            + source_val[0] * (h_measure[target_idx] - h_measure[source_idx])
+            source_val[0] * (v_measure[source_idx] - v_measure[target_idx])
+            + source_val[1] * (h_measure[source_idx] - h_measure[target_idx])
         ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
 
         res[1] = (
-            source_val[0] * (v_measure[source_idx] - v_measure[target_idx])
-            - source_val[1] * (h_measure[target_idx] - h_measure[source_idx])
+            source_val[1] * (v_measure[source_idx] - v_measure[target_idx])
+            - source_val[0] * (h_measure[target_idx] - h_measure[source_idx])
         ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
 
     else:  # forwards
         res[0] = (
-            source_val[1] * (v_measure[target_idx] - v_measure[source_idx])
-            + source_val[0] * (h_measure[source_idx] - h_measure[target_idx])
-        ) / (2 * (source_val[0] * source_val[0] - source_val[1] * source_val[1]))
+            source_val[0] * (v_measure[source_idx] - v_measure[target_idx])
+            + source_val[1] * (h_measure[target_idx] - h_measure[source_idx])
+        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
 
         res[1] = (
-            source_val[1] * (h_measure[source_idx] - h_measure[target_idx])
-            + source_val[0] * (v_measure[target_idx] - v_measure[source_idx])
+            source_val[0] * (h_measure[source_idx] - h_measure[target_idx])
+            + source_val[1] * (v_measure[source_idx] - v_measure[target_idx])
         ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
 
     return res

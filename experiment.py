@@ -187,7 +187,7 @@ talg = tomography()
 
 epsilons = [
     5e-2,
-    5e-3,
+    7e-3,
     5e-2,
     5e-2,
     5e-2,
@@ -212,9 +212,9 @@ epsilons = [
 
 execution_type = qutils.execution_type.simulator
 
-experiment = int(sys.argv[1]) if len(sys.argv) > 1 else None
+experiment = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 
-VERBOSITY = False
+VERBOSITY = True
 
 
 mm = measurement_manager(
