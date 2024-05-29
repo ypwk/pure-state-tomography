@@ -21,6 +21,15 @@ from pure_state_tomography import tomography
 
 
 def make_state(experiment_num: int):
+    """
+    Generates a quantum circuit based on the experiment number.
+
+    Parameters:
+        experiment_num (int): The experiment number.
+
+    Returns:
+        qiskit.QuantumCircuit: The generated quantum circuit.
+    """
     state = qiskit.QuantumCircuit(3)
     if experiment_num < 2:
         state.h(0)
@@ -88,11 +97,30 @@ def make_state(experiment_num: int):
 
 
 def calculate_fidelity(ideal, actual):
+    """
+    Calculates the fidelity between the ideal and actual quantum states.
+
+    Parameters:
+        ideal (ndarray): The ideal quantum state.
+        actual (ndarray): The actual quantum state.
+
+    Returns:
+        float: The fidelity value.
+    """
     inner_product = np.vdot(ideal, actual)
     return np.abs(inner_product)
 
 
 def print_header(fprint, experiment, execution_type, mm):
+    """
+    Prints the header information for the experiment.
+
+    Parameters:
+        fprint (function): The function to print the information.
+        experiment (int): The experiment number.
+        execution_type: The type of execution (e.g., simulator or QPU).
+        mm (measurement_manager): The measurement manager.
+    """
     fprint(f"Index: {int(experiment)}")
     fprint(f"Hadamard: {int(experiment) % 2 == 1}")
     fprint(f"Experiment: {int(experiment) // 2}")
@@ -110,6 +138,19 @@ def run(
     hadamard: bool = False,
     epsilon: float = 5e-2,
 ):
+    """
+    Runs the quantum experiment and performs tomography.
+
+    Parameters:
+        mm (measurement_manager): The measurement manager.
+        tomography_type (qutils.tomography_type): The type of tomography to perform.
+        state (ndarray | qiskit.QuantumCircuit): The quantum state or circuit.
+        experiment_num (int): The experiment number.
+        verbose (bool): Whether to print verbose output. Defaults to True.
+        job_file (str): The job file. Defaults to None.
+        hadamard (bool): Whether to apply a Hadamard gate. Defaults to False.
+        epsilon (float): The epsilon value for tomography. Defaults to 5e-2.
+    """
     fprint = putils.make_fprint(
         f"experiment_{experiment_num}_{execution_type.name}.txt"
     )
@@ -130,7 +171,7 @@ def run(
         job_file=job_file,
         hadamard=hadamard,
         epsilon=epsilon,
-        clean=True,
+        masked=True,
     )
 
     if res is not None:
@@ -300,3 +341,6 @@ else:
                     hadamard=(experiment % 2 == 1),
                     epsilon=epsilons[experiment],
                 )
+
+__author__ = "Kevin Wu"
+__credits__ = ["Kevin Wu"]
