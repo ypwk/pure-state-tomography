@@ -130,6 +130,7 @@ def run(
         job_file=job_file,
         hadamard=hadamard,
         epsilon=epsilon,
+        clean=True,
     )
 
     if res is not None:
@@ -187,7 +188,7 @@ talg = tomography()
 
 epsilons = [
     5e-2,
-    7e-3,
+    5e-2,
     5e-2,
     5e-2,
     5e-2,
@@ -201,7 +202,7 @@ epsilons = [
     5e-5,
     5e-5,
     5e-2,  # 0000 1111
-    5e-5,
+    5e-3,
     5e-2,  # 011 100
     5e-5,
     5e-2,  # 00000, 11111
@@ -212,10 +213,11 @@ epsilons = [
 
 execution_type = qutils.execution_type.simulator
 
-experiment = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+experiment = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
-VERBOSITY = True
+VERBOSITY = False
 
+NUM_RUNS = 256
 
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
@@ -254,7 +256,7 @@ else:
         )
         print_header(fprint, experiment, execution_type, mm)
 
-        for a in tqdm(range(512)):
+        for a in tqdm(range(NUM_RUNS)):
             state = make_state(experiment)
             run(
                 mm=mm,
@@ -282,7 +284,7 @@ else:
             )
             print_header(fprint, experiment, execution_type, mm)
 
-            for a in tqdm(range(512)):
+            for a in tqdm(range(NUM_RUNS)):
                 state = make_state(experiment)
                 run(
                     mm=mm,

@@ -55,6 +55,7 @@ class tomography:
         job_file: str = None,
         hadamard: bool = False,
         epsilon: float = 5e-2,
+        clean: bool = True,
     ):
         """
         Conducts pure state tomography on a quantum system to infer its state. This
@@ -77,6 +78,7 @@ class tomography:
                                     to the quantum system before and after tomography.
                                     Defaults to False.
             epsilon (float, optional): Epsilon value used to determine nonzero entries
+            clean (bool, optional)
 
         Returns:
             numpy.ndarray: A complex-valued array representing the inferred state of the
@@ -104,12 +106,14 @@ class tomography:
         ):
             if hadamard:
                 mm.apply_full_hadamard()
-                self.identity_res = mm.add_clean_m(qutils.m_type.identity, 0)
+                if clean:
+                    self.identity_res = mm.add_clean_m(qutils.m_type.identity, 0)
             self.__iter_inf_helper(res, mm, dry=False)
         else:  # ibm qpu
             if hadamard:  # add hadamard
                 mm.apply_full_hadamard()
-                mm.dummy_measurement(qutils.m_type.identity, 0, clean=True)
+                if clean:
+                    mm.dummy_measurement(qutils.m_type.identity, 0, clean=True)
             if job_file is None:
                 mm.dummy_measurement(qutils.m_type.identity, 0)
                 mm.to_job_file()
@@ -155,10 +159,11 @@ class tomography:
                 "Before Hadamard: {}".format(vector_form_result),
             )
             vector_form_result = putils.hadamard(vector_form_result)
-            vector_form_result = [
-                vector_form_result[i] if self.identity_res[i] > 5e-2 else 0
-                for i in range(len(vector_form_result))
-            ]
+            if clean:
+                vector_form_result = [
+                    vector_form_result[i] if self.identity_res[i] > 5e-2 else 0
+                    for i in range(len(vector_form_result))
+                ]
             self.verbosefprint(
                 "After Hadamard: {}".format(vector_form_result),
             )

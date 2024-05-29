@@ -1,8 +1,0 @@
-cq24t4ghbttg008qzw7g:m_type.identity:0:c
-cq24t4rdhsd0008eb2a0:m_type.identity:0:
-cq266xk7z1hg008qmy30:m_type.real_hadamard:0:
-cq266y3hbttg008r0390:m_type.real_hadamard:1:
-cq266yvdhsd0008eb9c0:m_type.real_hadamard:2:
-cq26cykd7we0008jc330:m_type.cmplx_hadamard:0:
-cq26cyvd7we0008jc33g:m_type.cmplx_hadamard:1:
-cq26cz328rp0008xrv3g:m_type.cmplx_hadamard:2:
