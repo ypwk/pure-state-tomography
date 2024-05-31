@@ -93,6 +93,14 @@ def make_state(experiment_num: int):
         state.x(0)
         state.cx(1, 0)
         state.cx(1, 2)
+    elif experiment_num < 24:  # 110 001
+        state = qiskit.QuantumCircuit(6)
+        state.h(0)
+        state.cx(0, 1)
+        state.cx(1, 2)
+        state.cx(2, 3)
+        state.cx(3, 4)
+        state.cx(4, 5)
     return state
 
 
@@ -249,6 +257,8 @@ epsilons = [
     5e-2,  # 00000, 11111
     5e-5,
     5e-2,  # 110 011
+    5e-5,
+    5e-2,  # 000000, 111111
     5e-5,
 ]
 

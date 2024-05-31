@@ -140,3 +140,5 @@ logs/*
 .vscode
 
 automatic_run.py
+
+final_rundata/
