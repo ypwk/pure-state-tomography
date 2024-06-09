@@ -1,3 +1,7 @@
+# Efficient Circuit-Based Quantum State Tomography via Sparse Entry Optimization
+
+This repository contains code for carrying out the experiments for our paper. 
+
 Before running this program for IBM quantum computers (as opposed to the local simulator), you will need to set up the IBM Qiskit Runtime. First, create a file named config.ini, which will contain your IBM credentials. The format is as follows:
 
 ```ini

@@ -60,7 +60,7 @@ def make_state(experiment_num: int):
         state.h(2)
         state.cx(1, 0)
         state.cx(2, 1)
-    elif experiment_num < 14:
+    elif experiment_num < 14:  # process tomography
         state = qiskit.QuantumCircuit(2)
         # state.x(0)
         # state.y(1)
@@ -104,19 +104,27 @@ def make_state(experiment_num: int):
     return state
 
 
-def calculate_fidelity(ideal, actual):
+def calculate_fidelity(ideal, actual, type):
     """
     Calculates the fidelity between the ideal and actual quantum states.
 
     Parameters:
         ideal (ndarray): The ideal quantum state.
         actual (ndarray): The actual quantum state.
+        type: type of fidelity to calculate, process or state
 
     Returns:
         float: The fidelity value.
     """
-    inner_product = np.vdot(ideal, actual)
-    return np.abs(inner_product)
+    if type == qutils.tomography_type.process:
+        inp_dim = ideal.shape[0]
+        ideal = np.reshape(ideal, (inp_dim * inp_dim, ))
+        actual = np.reshape(actual, (inp_dim * inp_dim, )).T
+        inner_product = np.vdot(ideal, actual)
+        return np.abs(inner_product) / (inp_dim)
+    elif type == qutils.tomography_type.state:
+        inner_product = np.vdot(ideal, actual)
+        return np.abs(inner_product)
 
 
 def print_header(fprint, experiment, execution_type, mm):
@@ -191,7 +199,7 @@ def run(
                         state.shape[0],
                         state.shape[0],
                     ),
-                ).T * sqrt(state.shape[0])
+                ).T
             fprint(
                 "Reconstructed {}:\n{}".format(
                     "vector" if state.ndim == 1 else "matrix", res
@@ -207,7 +215,7 @@ def run(
                         state.shape[0],
                         state.shape[0],
                     ),
-                ).T * sqrt(state.shape[0])
+                ).T
             else:
                 state = qutils.circuit_to_statevector(state)
             fprint(
@@ -220,7 +228,7 @@ def run(
                     "vector" if state.ndim == 1 else "matrix", res
                 )
             )
-            fprint(f"Fidelity: {calculate_fidelity(state, res)}")
+            fprint(f"Fidelity: {calculate_fidelity(state, res, tomography_type)}")
 
 
 # read in configuration details
@@ -236,20 +244,20 @@ QiskitRuntimeService.save_account(
 talg = tomography()
 
 epsilons = [
+    5e-2,  # 000, 001
     5e-2,
+    5e-2,  # 000, 110
     5e-2,
+    5e-2,  # 000, 111
     5e-2,
-    5e-2,
-    5e-2,
-    5e-2,
-    5e-2,
+    5e-2,  # 000, 010, 100
     5e-5,
-    5e-2,
+    5e-2,  # 000, 011, 100
     5e-5,
-    5e-2,
+    5e-2,  # 000, 011, 110
     5e-3,
-    5e-5,
-    5e-5,
+    5e-3,  # unitary
+    5e-3,
     5e-2,  # 0000 1111
     5e-3,
     5e-2,  # 011 100
@@ -268,7 +276,7 @@ experiment = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
 VERBOSITY = False
 
-NUM_RUNS = 256
+NUM_RUNS = 512
 
 mm = measurement_manager(
     n_shots=putils.fast_pow(2, 14),
