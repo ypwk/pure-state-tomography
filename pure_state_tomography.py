@@ -165,7 +165,7 @@ class tomography:
 
         if masked:
             vector_form_result = [
-                vector_form_result[i] if self.identity_res[i] > epsilon else 0
+                vector_form_result[i] if self.identity_res[i] > 5e-2 else 0
                 for i in range(len(vector_form_result))
             ]
 
