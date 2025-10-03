@@ -28,14 +28,7 @@ Note:
 This module assumes familiarity with quantum computing concepts and terminologies.
 """
 
-from numpy import (
-    array,
-    ndarray,
-    sqrt,
-    zeros,
-    linalg,
-)
-
+import numpy as np
 from networkx import complete_graph, minimum_spanning_tree
 import putils
 import qutils
@@ -56,7 +49,7 @@ class tomography:
         hadamard: bool = False,
         epsilon: float = 5e-2,
         masked: bool = True,
-    ):
+    ) -> np.ndarray | None:
         """
         Conducts pure state tomography on a quantum system to infer its state. This
         method uses measurements and quantum operations to reconstruct the state
@@ -81,7 +74,7 @@ class tomography:
             masked (bool, optional)
 
         Returns:
-            numpy.ndarray: A complex-valued array representing the inferred state of the
+            numpy.np.ndarray: A complex-valued np.array representing the inferred state of the
                         quantum system.
 
         Raises:
@@ -98,7 +91,7 @@ class tomography:
         self.hadamard = hadamard
         self.epsilon = epsilon
         DIM = putils.fast_pow(2, mm.n_qubits)
-        res = zeros((DIM, 2))
+        res = np.zeros((DIM, 2))
 
         if (  # precise or noisy simulator
             mm.execution_type == qutils.execution_type.statevector
@@ -146,14 +139,14 @@ class tomography:
                         )
                     return
                 else:
-                    res = zeros((DIM, 2))
+                    res = np.zeros((DIM, 2))
                     self.__iter_inf_helper(res, mm, dry=False)
 
         self.verbosefprint(
             "Number of unitary operators applied: {}".format(mm.num_measurements),
         )
 
-        vector_form_result = array([res[a][0] + 1j * res[a][1] for a in range(DIM)])
+        vector_form_result = np.array([res[a][0] + 1j * res[a][1] for a in range(DIM)])
         if hadamard:
             self.verbosefprint(
                 "Before Hadamard: {}".format(vector_form_result),
@@ -170,22 +163,22 @@ class tomography:
             ]
 
         if tomography_type is qutils.tomography_type.state:
-            vector_form_result = vector_form_result / linalg.norm(vector_form_result)
+            vector_form_result = vector_form_result / np.linalg.norm(vector_form_result)
         elif tomography_type is qutils.tomography_type.process:
-            vector_form_result = [_ * sqrt(sqrt(len(vector_form_result))) for _ in vector_form_result]
+            vector_form_result = [_ * np.sqrt(np.sqrt(len(vector_form_result))) for _ in vector_form_result]
 
         return vector_form_result
 
     def __iter_inf_helper(
         self,
-        target_arr: ndarray,
+        target_arr: np.ndarray,
         mm: measurement_manager,
         dry: bool,
     ) -> None:
         """An iterative implementation of the inference helper
 
         Args:
-            target_arr (numpy.ndarray): The array with incomplete measurements
+            target_arr (numpy.np.ndarray): The np.array with incomplete measurements
             mm (measurement_manager): Manager object keeping track of measurement
                                       values.
             dry (bool): Denotes whether or not this should be a dry run.
@@ -200,7 +193,7 @@ class tomography:
         if len(counts) == 0:
             return
 
-        target_arr[counts[0]][0] = sqrt(id_m[counts[0]])
+        target_arr[counts[0]][0] = np.sqrt(id_m[counts[0]])
         t_list = set(counts)
         t_list.remove(counts[0])
 

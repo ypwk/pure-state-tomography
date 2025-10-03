@@ -142,3 +142,7 @@ logs/*
 automatic_run.py
 
 final_rundata/
+
+apikey.json
+
+experiments/runs

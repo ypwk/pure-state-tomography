@@ -1,18 +1,10 @@
-from numpy import (
-    ndarray,
-    reshape,
-    linalg,
-    pi,
-    sqrt,
-)
+from numpy import ndarray, reshape, linalg, pi
 import numpy as np
 from tqdm import tqdm
-import configparser
 import sys
 import os
 
 import qiskit
-from qiskit_ibm_runtime import QiskitRuntimeService
 
 import putils
 import qutils
@@ -118,8 +110,8 @@ def calculate_fidelity(ideal, actual, type):
     """
     if type == qutils.tomography_type.process:
         inp_dim = ideal.shape[0]
-        ideal = np.reshape(ideal, (inp_dim * inp_dim, ))
-        actual = np.reshape(actual, (inp_dim * inp_dim, )).T
+        ideal = np.reshape(ideal, (inp_dim * inp_dim,))
+        actual = np.reshape(actual, (inp_dim * inp_dim,)).T
         inner_product = np.vdot(ideal, actual)
         return np.abs(inner_product) / (inp_dim)
     elif type == qutils.tomography_type.state:
@@ -232,13 +224,13 @@ def run(
 
 
 # read in configuration details
-with open("config.ini", "r") as cf:
-    confp = configparser.ConfigParser()
-    confp.read_file(cf)
-    api_token = confp.get("IBM", "token")
-QiskitRuntimeService.save_account(
-    channel="ibm_quantum", token=api_token, overwrite=True
-)
+# with open("config.ini", "r") as cf:
+#     confp = configparser.ConfigParser()
+#     confp.read_file(cf)
+#     api_token = confp.get("IBM", "token")
+# QiskitRuntimeService.save_account(
+#     channel="ibm_quantum", token=api_token, overwrite=True
+# )
 
 
 talg = tomography()
@@ -270,7 +262,7 @@ epsilons = [
     5e-5,
 ]
 
-execution_type = qutils.execution_type.simulator
+execution_type = qutils.execution_type.statevector
 
 experiment = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
