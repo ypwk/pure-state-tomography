@@ -1,11 +1,8 @@
-from numpy import ndarray, sqrt, asarray, zeros
 import numpy as np
-from datetime import datetime as dt
-import os
 
 from qiskit import QuantumCircuit
-from qiskit_aer import AerSimulator
-from qiskit_ibm_runtime import QiskitRuntimeService
+from qiskit_aer import AerSimulator, StatevectorSimulator
+from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime.fake_provider import FakeBrisbane
 
 import src.putils as putils
@@ -15,13 +12,14 @@ MAX_CONC_JOB_COUNT = 3
 
 
 class measurement_manager:
-    def __init__(self, n_shots, execution_type, verbose: bool, partial_mixing: bool = False) -> None:
+    def __init__(self, n_shots, execution_type, verbose: bool, batch_size: int = 1, partial_mixing: bool = False) -> None:
         self.n_shots = n_shots
         self.execution_type = execution_type
         self.verbose = verbose
         self.m_state = None
         self.clean_m_state = None
         self.partial_mixing = partial_mixing
+        self.batch_size = batch_size
 
         self.num_measurements = 0
 
@@ -38,11 +36,19 @@ class measurement_manager:
             )
             self.verboseprint("Available devices:",
                               self.aer_sim.available_devices())
+        elif self.execution_type == qutils.execution_type.statevector:
+            self.aer_sim = StatevectorSimulator(
+                precision="double", device="GPU")
+            
+            self.verboseprint("Using statevector simulator.")
+        else:
+            self.verboseprint(
+                f"Execution type {self.execution_type} is not supported.")
 
     # ---------- State setup ----------
-    def set_state(self, tomography_type, state: ndarray | QuantumCircuit) -> None:
+    def set_state(self, tomography_type, state: np.ndarray | QuantumCircuit) -> None:
         """Sets the state for tomography (state or process)."""
-        if isinstance(state, ndarray):
+        if isinstance(state, np.ndarray):
             if tomography_type == qutils.tomography_type.state:
                 self.verboseprint(f"Input vector: {state}")
                 self.n_qubits = putils.fast_log2(len(state))
@@ -86,7 +92,7 @@ class measurement_manager:
         self.num_measurements = 0
 
     # ---------- Circuit builder ----------
-    def build_circuit(self, measure_type, op_pos: int, cnots=(), clean=False):
+    def build_circuit(self, measure_type, op_pos: int, cnots=(), hadamards=(), clean=False):
         """Construct circuit for a given measurement type and operator position."""
         base = self.clean_m_state if clean else self.m_state
         qc = base.copy("execute")
@@ -94,12 +100,8 @@ class measurement_manager:
 
         # Insert CNOTs or Hadamards
         if self.partial_mixing:
-            qubit_set = set()
-            for c in cnots or []:
-                qubit_set.add(c[0])
-                qubit_set.add(c[1])
-            for loc in qubit_set:
-                qc.h(loc)
+            for loc in hadamards:
+                qc.h(self.n_qubits - loc - 1)
         else:
             for c in cnots or []:
                 ctrl, tgt = self.n_qubits - c[0] - 1, self.n_qubits - c[1] - 1
@@ -112,22 +114,24 @@ class measurement_manager:
         if measure_type == qutils.m_type.real_hadamard:
             qc.h(q)
         elif measure_type == qutils.m_type.cmplx_hadamard:
-            qc.unitary([[1/sqrt(2), 1j/sqrt(2)], [1/sqrt(2), -1j/sqrt(2)]], q)
+            qc.unitary([[1/np.sqrt(2), 1j/np.sqrt(2)],
+                        [1/np.sqrt(2), -1j/np.sqrt(2)]], q)
         elif measure_type == qutils.m_type.identity:
             qc.id(q)
+        
         return qc
 
     # ---------- Measurements ----------
-    def add_measurement(self, measure_type, op_pos=0, cnots=(), clean=False):
+    def add_measurement(self, measure_type, op_pos=0, cnots=(), hadamards=(), clean=False):
         """Perform measurement and store results in appropriate registry."""
-        qc = self.build_circuit(measure_type, op_pos, cnots, clean)
+        qc = self.build_circuit(measure_type, op_pos, cnots, hadamards, clean)
         res = self.measure_state(qc)
         self.num_measurements += 1
         entry = {"res": res, "str": str(qc) if self.verbose else "Not Verbose"}
 
-        if cnots:
+        if cnots or hadamards:
             self.__c_measurements[measure_type].append(
-                {"cnots": cnots, "op_pos": op_pos,
+                {"cnots": cnots, "hadamards": hadamards, "op_pos": op_pos,
                     "data": res, "str": entry["str"]}
             )
         elif clean:
@@ -136,65 +140,50 @@ class measurement_manager:
             self.__measurements[measure_type][op_pos] = entry
         return res
 
-    def fetch(self, measure_type, op_pos=0, cnots=(), clean=False):
+    def fetch(self, measure_type, op_pos=0, cnots=(), hadamards=(), clean=False):
         """Retrieve measurement, adding it if not already present."""
         if cnots:
             for e in self.__c_measurements[measure_type]:
                 if e["cnots"] == cnots and e["op_pos"] == op_pos:
                     self.verboseprint(e["str"])
                     return e["data"]
-            return self.add_measurement(measure_type, op_pos, cnots)
+            return self.add_measurement(measure_type, op_pos, cnots, hadamards)
+        if hadamards:
+            for e in self.__c_measurements[measure_type]:
+                if e["hadamards"] == hadamards and e["op_pos"] == op_pos:
+                    self.verboseprint(e["str"])
+                    return e["data"]
+            return self.add_measurement(measure_type, op_pos, cnots, hadamards)
+
         store = self.__clean_measurements if clean else self.__measurements
         if store[measure_type][op_pos] is None:
-            return self.add_measurement(measure_type, op_pos, clean=clean)
+            return self.add_measurement(measure_type, op_pos, cnots=cnots, hadamards=hadamards, clean=clean)
         self.verboseprint(store[measure_type][op_pos]["str"])
         return store[measure_type][op_pos]["res"]
-
-    def dummy_measurement(self, measure_type, op_pos, clean=False, cnots=()):
-        """Mark that a measurement is needed (placeholder entry)."""
-        if cnots:
-            if any(e for e in self.__c_measurements[measure_type]
-                   if e["cnots"] == cnots and e["op_pos"] == op_pos):
-                return
-            self.__c_measurements[measure_type].append(
-                {"cnots": cnots, "op_pos": op_pos, "data": 1,
-                 "str": str(self.build_circuit(measure_type, op_pos, cnots))}
-            )
-        else:
-            store = self.__clean_measurements if clean else self.__measurements
-            if store[measure_type][op_pos] is None:
-                store[measure_type][op_pos] = {
-                    "res": 1,
-                    "str": str(self.build_circuit(measure_type, op_pos, cnots))
-                    if self.verbose else "",
-                }
 
     # ---------- Helpers ----------
     def apply_full_hadamard(self):
         for a in range(self.n_qubits):
             self.m_state.h(a)
 
-    def counts_to_prob(self, counts):
-        res = zeros(1 << self.n_qubits)
-        for bitstr, c in counts.items():
-            res[int(bitstr, 2)] = c / self.n_shots
-        return res
-
     def measure_state(self, circuit):
-        """Run circuit and return probability distribution."""
-        res = zeros(1 << self.m_state.num_qubits)
+        """Run circuit batch_size times and return stacked probability distributions."""
+        dim = 1 << self.m_state.num_qubits
+        results = np.zeros((self.batch_size, dim))
         if self.execution_type == qutils.execution_type.simulator:
-            circuit.measure_all()
-            counts = qutils.run_circuit(
-                self.aer_sim, circuit, shots=self.n_shots)
-            res = self.counts_to_prob(counts)
+            circ = circuit.copy()
+            circ.measure_all()
+            results = qutils.run_circuit(
+                self.aer_sim, circ, shots=self.n_shots, batch_size=self.batch_size)
         elif self.execution_type == qutils.execution_type.statevector:
             sim = AerSimulator(method="statevector")
-            circuit.save_statevector()
-            statevector = asarray(
-                sim.run(circuit).result().get_statevector(circuit))
-            res = np.abs(statevector) ** 2
-        return res
+            for i in range(self.batch_size):
+                circ = circuit.copy()
+                circ.save_statevector()
+                statevector = np.asarray(
+                    sim.run(circ).result().get_statevector(circ))
+                results[i] = np.abs(statevector) ** 2
+        return results
 
     def __len__(self):  # count stored measurements
         return (

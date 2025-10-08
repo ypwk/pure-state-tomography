@@ -21,11 +21,13 @@ import numpy as np
 import os
 from typing import Optional
 
-from qiskit import QuantumCircuit, transpile, result
+from qiskit import QuantumCircuit, transpile
 from qiskit.circuit.library import UnitaryGate
 from qiskit_aer import AerSimulator
 
 from enum import Enum
+
+import src.putils as putils
 
 EPSILON = 5e-2
 
@@ -64,55 +66,96 @@ def find_nonzero_positions(counts, epsilon=EPSILON) -> list:
 
 
 def infer_target(target_idx, source_idx, source_val, h_measure, v_measure) -> np.ndarray:
-    """Calculates and returns the value of an entry using previously inferred values in
-    the measurement results.
-
-    Args:
-        target_idx (int): The index of the target value to infer
-        source_idx (int): The index of the value to use to infer the target
-        source_val (numpy.np.ndarray): The source value
-        h_measure (numpy.np.ndarray): The np.array of measurements with the Hadamard gate
-        v_measure (numpy.np.ndarray): The np.array of measurements with the alternate gate
-
-    Returns: numpy.np.ndarray
     """
+    Vectorized version: operates on batches.
+    Args:
+        target_idx (int): index of target basis state
+        source_idx (int): index of source basis state
+        source_val (np.ndarray): (batch_size, 2) array of [Re, Im] values for the source
+        h_measure (np.ndarray): (batch_size, dim) array of Hadamard measurement probs
+        v_measure (np.ndarray): (batch_size, dim) array of complex-Hadamard measurement probs
+    Returns:
+        np.ndarray of shape (batch_size, 2)
+    """
+    # Denominator: (batch,)
+    denom = 2 * (source_val[:, 0] ** 2 + source_val[:, 1] ** 2)
 
-    res = np.array([0.0, 0.0])
     if target_idx < source_idx:  # backwards
-        res[0] = (
-            source_val[1] * (v_measure[source_idx] - v_measure[target_idx])
-            + source_val[0] * (h_measure[target_idx] - h_measure[source_idx])
-        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
-
-        res[1] = (
-            source_val[0] * (v_measure[source_idx] - v_measure[target_idx])
-            + source_val[1] * (h_measure[target_idx] - h_measure[source_idx])
-        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
-
+        re = (
+            source_val[:, 1] * (v_measure[:, source_idx] -
+                                v_measure[:, target_idx])
+            + source_val[:, 0] *
+            (h_measure[:, target_idx] - h_measure[:, source_idx])
+        ) / denom
+        im = (
+            source_val[:, 0] * (v_measure[:, source_idx] -
+                                v_measure[:, target_idx])
+            + source_val[:, 1] *
+            (h_measure[:, target_idx] - h_measure[:, source_idx])
+        ) / denom
     else:  # forwards
-        res[0] = (
-            source_val[0] * (h_measure[source_idx] - h_measure[target_idx])
-            - source_val[1] * (v_measure[target_idx] - v_measure[source_idx])
-        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
+        re = (
+            source_val[:, 0] * (h_measure[:, source_idx] -
+                                h_measure[:, target_idx])
+            - source_val[:, 1] *
+            (v_measure[:, target_idx] - v_measure[:, source_idx])
+        ) / denom
+        im = (
+            source_val[:, 0] * (v_measure[:, target_idx] -
+                                v_measure[:, source_idx])
+            + source_val[:, 1] *
+            (h_measure[:, source_idx] - h_measure[:, target_idx])
+        ) / denom
 
-        res[1] = (
-            source_val[0] * (v_measure[target_idx] - v_measure[source_idx])
-            + source_val[1] * (h_measure[source_idx] - h_measure[target_idx])
-        ) / (2 * (source_val[0] * source_val[0] + source_val[1] * source_val[1]))
-
-    return res
+    return np.stack([re, im], axis=1)  # (batch_size, 2)
 
 
-def infer_block(target_idx, source_idx, source_val, h_measure, v_measure) -> np.ndarray:
-    """Calculates and returns the value of an entry using previously inferred values in
-    the measurement results.
-
-    Args:
-        target_idx (int): The index of the target value to
-        
-        
+def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, op_pos, h_measure, v_measure) -> np.ndarray:
     """
-    
+    Vectorized version for partial mixing case.
+    Args:
+        target_idx (int)
+        source_idx (int)
+        source_val (np.ndarray): (batch_size, 2)
+        h_measure (np.ndarray): (batch_size, dim)
+        v_measure (np.ndarray): (batch_size, dim)
+    Returns:
+        np.ndarray of shape (batch_size, 2)
+    """
+    denom = 4 * (source_val[:, 0] ** 2 + source_val[:, 1] ** 2)
+    num_qubits = putils.fast_log2(h_measure.shape[1])
+    all_hadamards = set(hadamards) | {op_pos}
+    mixed_subspace_size = putils.fast_pow(2, len(all_hadamards))
+
+    non_hadamards = [i for i in range(num_qubits) if i not in all_hadamards]
+
+    # Build mask of those non-hadamard bits
+    block_mask = 0
+    for i in non_hadamards:
+        block_mask |= 1 << (num_qubits - 1 - i)
+
+    # Block bitstring = bits of target_idx restricted to non-hadamards
+    block_bitstring = target_idx & block_mask
+
+    # First index = keep only block bits (zero out hadamard bits)
+    first_idx = block_bitstring
+
+    # Second index = same but set the largest hadamard bit
+    max_idx = max(all_hadamards)
+    second_idx = first_idx | (1 << (num_qubits - 1 - max_idx))
+
+    re = (
+        source_val[:, 0] * (h_measure[:, first_idx] - h_measure[:, second_idx])
+        + source_val[:, 1] * (v_measure[:, first_idx] -
+                              v_measure[:, second_idx])
+    ) * mixed_subspace_size / denom
+    im = (
+        source_val[:, 1] * (h_measure[:, first_idx] - h_measure[:, second_idx])
+        - source_val[:, 0] * (v_measure[:, first_idx] -
+                              v_measure[:, second_idx])
+    ) * mixed_subspace_size / denom
+
+    return np.stack([re, im], axis=1)  # (batch_size, 2)
 
 
 def create_vector_circuit(state, n_qubits) -> QuantumCircuit:
@@ -149,20 +192,35 @@ def create_matrix_circuit(state, n_qubits) -> QuantumCircuit:
     return qc
 
 
-def run_circuit(aer_sim, qc, shots=1024, backend=None) -> result.counts.Counts:
+def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
     """Runs the circuit on the simulator
 
     Args:
         qc (qiskit.QuantumCircuit): Quantum circuit to run
         shots (int): Number of shots to take
-        backend: Backend device to mimic
+        batch_size (int): Number of batches to run
 
     Returns:
         numpy.np.ndarray: An np.array of result counts
     """
+
+    dim = 1 << qc.num_qubits
+    total_shots = shots
+
+    def _counts_to_prob(counts):
+        res = np.zeros(1 << qc.num_qubits)
+        for bitstr, c in counts.items():
+            res[int(bitstr, 2)] = c / shots
+        return res
+
     t_qc = transpile(qc, aer_sim, optimization_level=1)
-    result = aer_sim.run(t_qc, shots=shots, device="GPU").result()
-    return result.get_counts(qc)
+    results = np.zeros((batch_size, dim))
+    for i in range(batch_size):
+        job = aer_sim.run(t_qc, shots=total_shots,
+                          seed_simulator=np.random.randint(1e9))
+        counts = job.result().get_counts(t_qc)
+        results[i] = _counts_to_prob(counts)
+    return results
 
 
 def circuit_to_statevector(qc: QuantumCircuit) -> np.ndarray:

@@ -43,9 +43,8 @@ class tomography:
         self,
         mm: measurement_manager,
         tomography_type: qutils.tomography_type,
-        out_file: str,
         verbose: bool = False,
-        job_file: str = None,
+        batch_size: int = 1,
         partial_mixing: bool = True,
         epsilon: float = 5e-2,
         masked: bool = True,
@@ -63,10 +62,6 @@ class tomography:
             verbose (bool, optional): If set to True, the function will print detailed
                                     information about the tomography process. Defaults
                                     to False.
-            job_file (str, optional): Path to a file containing precomputed jobs. If not
-                                    provided, the function will compute and save jobs
-                                    depending on the execution context. Defaults to
-                                    None.
             partial_mixing (bool, optional): If set to True, applies a Hadamard transformation
                                              to the quantum system before and after tomography
                                              instead of CNOTs. Defaults to True.
@@ -83,34 +78,31 @@ class tomography:
 
         See experiment.ipynb for example usage.
         """
+        self.batch_size = batch_size
         self.n_qubits = mm.n_qubits
         self.partial_mixing = partial_mixing
         self.epsilon = epsilon
         DIM = putils.fast_pow(2, mm.n_qubits)
-        state = np.zeros((DIM, 2))
-        
+        state = np.zeros((self.batch_size, DIM, 2))
+
+        self.verboseprint = print if verbose else (lambda *a, **k: None)
+
         mm.partial_mixing = partial_mixing
 
         if masked:
-            self.identity_res = mm.add_clean_m(qutils.m_type.identity, 0)
+            self.identity_res = mm.add_measurement(
+                qutils.m_type.identity, 0, clean=True)
 
         self.__iter_inf_helper(state, mm, dry=False)
 
         vector_form_result = np.array(
-            [state[a][0] + 1j * state[a][1] for a in range(DIM)])
+            [(state[b, :, 0] + 1j * state[b, :, 1]) / np.linalg.norm((state[b, :, 0] + 1j * state[b, :, 1])) for b in range(batch_size)]
+        )
 
-        if masked:
-            vector_form_result = [
-                vector_form_result[i] if self.identity_res[i] > 5e-2 else 0
-                for i in range(len(vector_form_result))
-            ]
-
-        if tomography_type is qutils.tomography_type.state:
-            vector_form_result = vector_form_result / \
-                np.linalg.norm(vector_form_result)
-        elif tomography_type is qutils.tomography_type.process:
-            vector_form_result = [
-                _ * np.sqrt(np.sqrt(len(vector_form_result))) for _ in vector_form_result]
+        # if masked:
+        #     # shape (batch_size, dim), boolean
+        #     mask = self.identity_res > 5e-2
+        #     vector_form_result = vector_form_result * mask
 
         return vector_form_result
 
@@ -130,26 +122,26 @@ class tomography:
         """
 
         # do identity measurement to seed
-        id_m = mm.fetch_m(qutils.m_type.identity, 0)
+        id_m = mm.fetch(qutils.m_type.identity, 0)
         if dry and type(id_m) is str:
             return
         nonzero_positions = qutils.find_nonzero_positions(
-            id_m, epsilon=self.epsilon)
+            id_m[0], epsilon=self.epsilon)
 
         if len(nonzero_positions) == 0:
             return
 
-        state[nonzero_positions[0]][0] = np.sqrt(
-            id_m[nonzero_positions[0]])
+        pos = nonzero_positions[0]
+        state[:, pos, 0] = np.sqrt(id_m[:, pos])
         t_list = set(nonzero_positions)
         t_list.remove(nonzero_positions[0])
 
         nonzero_positions = set(nonzero_positions)
 
         if dry:
-            self.verbosefprint("Dry run measurements:")
+            self.verboseprint("Dry run measurements:")
         else:
-            self.verbosefprint("Measurements:")
+            self.verboseprint("Measurements:")
 
         # use MST
         graph = complete_graph(nonzero_positions)
@@ -171,94 +163,91 @@ class tomography:
             while edge_idx < len(edges):
                 u, v, data = edges[edge_idx]
                 if (u in t_list) ^ (v in t_list):
-                    source, target = (u, v) if v in t_list else (v, u)
+                    source_idx, target_idx = (u, v) if v in t_list else (v, u)
                     break
                 edge_idx += 1
             else:
                 break  # exhausted all edges
 
             # construct measure operators with correct CNOT placement
-            output = [
-                int(x) for x in "{:0{size}b}".format(source ^ target, size=mm.n_qubits)
+            difference_bitstring = [
+                int(x) for x in "{:0{size}b}".format(source_idx ^ target_idx, size=mm.n_qubits)
             ]
-            target_nonzero = [
-                int(x) for x in "{:0{size}b}".format(target, size=mm.n_qubits)
+            target_bitstring = [
+                int(x) for x in "{:0{size}b}".format(target_idx, size=mm.n_qubits)
             ]
-            nonzero = qutils.find_nonzero_positions(output)
-            target_nonzero = qutils.find_nonzero_positions(target_nonzero)
-            op_pos = nonzero[0]
-            nonzero = list(nonzero[1:])
+            # locations where source and target index bitstrings differ
+            difference_nonzero_locations = qutils.find_nonzero_positions(
+                difference_bitstring)
+            # nonzero locations in target bitstring
+            target_nonzero_locations = qutils.find_nonzero_positions(
+                target_bitstring)
+            op_pos = difference_nonzero_locations[0]
+            nonzero = list(difference_nonzero_locations[1:])
 
-            # figure out how to structure CNOTs
-            cnots = []
-
-            # find 1 position outside of nonzero
-            for e in nonzero:
-                for t in target_nonzero:
-                    if t not in nonzero:
-                        cnots.append([t, e])
-                        break
-
-            self.verbosefprint(
+            self.verboseprint(
                 "Circuits for source index {} and target index {}:".format(
-                    source,
-                    target,
+                    source_idx,
+                    target_idx,
                 )
             )
-            if dry:
-                mm.dummy_measurement(
-                    qutils.m_type.real_hadamard, op_pos, cnots=cnots)
-                mm.dummy_measurement(
-                    qutils.m_type.cmplx_hadamard, op_pos, cnots=cnots)
+
+            if self.partial_mixing:
+                hadamards = nonzero
+
+                real_m = mm.fetch(
+                    measure_type=qutils.m_type.real_hadamard, hadamards=hadamards, op_pos=op_pos)
+                cmplx_m = mm.fetch(
+                    measure_type=qutils.m_type.cmplx_hadamard, hadamards=hadamards, op_pos=op_pos)
+
+                state[:, target_idx, :] = qutils.infer_partially_mixed_target(
+                    target_idx=target_idx,
+                    source_idx=source_idx,
+                    hadamards=hadamards,
+                    op_pos=op_pos,
+                    source_val=state[:, source_idx, :],
+                    h_measure=real_m,
+                    v_measure=cmplx_m,
+                )
             else:
+                # figure out how to structure CNOTs
+                cnots = []
+
+                # find 1 position outside of nonzero
+                for e in nonzero:
+                    for t in target_nonzero_locations:
+                        if t not in nonzero:
+                            cnots.append([t, e])
+                            break
+
                 real_m = mm.fetch(
                     measure_type=qutils.m_type.real_hadamard, cnots=cnots, op_pos=op_pos)
                 cmplx_m = mm.fetch(
                     measure_type=qutils.m_type.cmplx_hadamard, cnots=cnots, op_pos=op_pos)
 
-                corrected_target = target
+                corrected_target = target_idx
                 for cnot in cnots:
                     corrected_target ^= 1 << (mm.n_qubits - 1 - cnot[1])
 
-                state[target] = qutils.infer_target(
+                state[:, target_idx, :] = qutils.infer_target(
                     target_idx=corrected_target,
-                    source_idx=source,
-                    source_val=state[source],
+                    source_idx=source_idx,
+                    source_val=state[:, source_idx, :],
                     h_measure=real_m,
                     v_measure=cmplx_m,
                 )
 
-                self.verbosefprint(
-                    f"Calculated target {corrected_target} using source {source}")
+            self.verboseprint(
+                f"Calculated target {target_idx} using source {source_idx}")
 
-            t_list.remove(target)
+            t_list.remove(target_idx)
             edge_idx += 1
 
-        self.verbosefprint("")
+        self.verboseprint("")
         if dry:
             mm.session.close()
 
-    def __iter_inf_partial_mixed(
-        self,
-        state: np.ndarray,
-        start_idx: int, 
-        end_idx: int,
-        mm: measurement_manager,
-        dry: bool,
-    ) -> None:
-        """An iterative implementation of the inference helper, using Hadamard gates
-        instead of CNOTs.
-
-        Args:
-            state (numpy.np.ndarray): The np.array with incomplete measurements
-            start_idx (int): The starting index of the range to process.
-            end_idx (int): The ending index of the range to process.
-            mm (measurement_manager): Manager object keeping track of measurement
-                                      values.
-            dry (bool): Denotes whether or not this should be a dry run.
-        """
-
-        # take measurements of both 
 
 __author__ = "Kevin Wu"
+
 __credits__ = ["Kevin Wu"]

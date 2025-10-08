@@ -1,4 +1,4 @@
-from numpy import ndarray, sqrt, asarray, zeros
+import numpy as np
 from datetime import datetime as dt
 import os
 
@@ -7,18 +7,20 @@ from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QiskitRuntimeService
 from qiskit_ibm_runtime.fake_provider import FakeBrisbane
 
-import putils, qutils
+import putils
+import qutils
 
 MAX_CONC_JOB_COUNT = 3
 
 
 class measurement_manager:
-    def __init__(self, n_shots, execution_type, out_file, verbose: bool) -> None:
+    def __init__(self, n_shots, execution_type, out_file, batch_size: int = 1, verbose: bool = False) -> None:
         self.n_shots = n_shots
         self.execution_type = execution_type
         self.verbose = verbose
         self.m_state = None
         self.clean_m_state = None
+        self.batch_size = batch_size
 
         self.num_measurements = 0
         self.my_job_file = None
@@ -38,19 +40,21 @@ class measurement_manager:
             print(self.aer_sim.available_devices())
 
     # ---------- State setup ----------
-    def set_state(self, tomography_type, state: ndarray | QuantumCircuit) -> None:
+    def set_state(self, tomography_type, state: np.ndarray | QuantumCircuit) -> None:
         """Sets the state for tomography (state or process)."""
-        if isinstance(state, ndarray):
+        if isinstance(state, np.ndarray):
             if tomography_type == qutils.tomography_type.state:
                 self.fprint(f"Input vector: {state}", flush=True)
                 self.n_qubits = putils.fast_log2(len(state))
-                self.m_state = qutils.create_vector_circuit(state, self.n_qubits)
+                self.m_state = qutils.create_vector_circuit(
+                    state, self.n_qubits)
             elif tomography_type == qutils.tomography_type.process:
                 if state.shape[0] != state.shape[1]:
                     raise ValueError("Process matrix must be square.")
                 self.fprint(f"Input matrix:\n{state}", flush=True)
                 self.n_qubits = putils.fast_log2(state.shape[0]) * 2
-                self.m_state = qutils.create_matrix_circuit(state, self.n_qubits)
+                self.m_state = qutils.create_matrix_circuit(
+                    state, self.n_qubits)
         elif isinstance(state, QuantumCircuit):
             if tomography_type == qutils.tomography_type.state:
                 self.fprint(f"Input circuit:\n{state}", flush=True)
@@ -74,9 +78,11 @@ class measurement_manager:
         self.clean_m_state = self.m_state.copy("clean")
 
         # reset measurement stores
-        self.__measurements = {t: [None] * self.n_qubits for t in qutils.m_type}
+        self.__measurements = {t: [None] *
+                               self.n_qubits for t in qutils.m_type}
         self.__c_measurements = {t: [] for t in qutils.m_type}
-        self.__clean_measurements = {t: [None] * self.n_qubits for t in qutils.m_type}
+        self.__clean_measurements = {
+            t: [None] * self.n_qubits for t in qutils.m_type}
         self.num_measurements = 0
 
     # ---------- Circuit builder ----------
@@ -98,7 +104,7 @@ class measurement_manager:
         if measure_type == qutils.m_type.real_hadamard:
             qc.h(q)
         elif measure_type == qutils.m_type.cmplx_hadamard:
-            qc.unitary([[1/sqrt(2), 1j/sqrt(2)], [1/sqrt(2), -1j/sqrt(2)]], q)
+            qc.unitary([[1/np.sqrt(2), 1j/np.sqrt(2)], [1/np.sqrt(2), -1j/np.sqrt(2)]], q)
         elif measure_type == qutils.m_type.identity:
             qc.id(q)
         return qc
@@ -113,7 +119,8 @@ class measurement_manager:
 
         if cnots:
             self.__c_measurements[measure_type].append(
-                {"cnots": cnots, "op_pos": op_pos, "data": res, "str": entry["str"]}
+                {"cnots": cnots, "op_pos": op_pos,
+                    "data": res, "str": entry["str"]}
             )
         elif clean:
             self.__clean_measurements[measure_type][op_pos] = entry
@@ -151,7 +158,7 @@ class measurement_manager:
                 store[measure_type][op_pos] = {
                     "res": 1,
                     "str": str(self.build_circuit(measure_type, op_pos, cnots))
-                           if self.verbose else "",
+                    if self.verbose else "",
                 }
 
     # ---------- Job handling ----------
@@ -160,7 +167,8 @@ class measurement_manager:
         if self.my_job_file is None:
             self.my_job_file = f"job_{dt.now().strftime('%Y_%m_%dT_%H_%M_%S')}.txt"
             self.verboseprint("Warning: printing to", self.my_job_file)
-            self.verbosefprint("Corresponding job file:", self.my_job_file, flush=True)
+            self.verbosefprint("Corresponding job file:",
+                               self.my_job_file, flush=True)
 
         os.makedirs("jobs", exist_ok=True)
         job_path = os.path.join("jobs", self.my_job_file)
@@ -176,14 +184,17 @@ class measurement_manager:
                     for op_pos, entry in enumerate(store[t]):
                         if entry and isinstance(entry["res"], int):
                             measurements += 1
-                            job_id = self.add_measurement(t, op_pos, clean=clean_flag)
-                            f.write(f"{job_id}:{t}:{op_pos}:{'c' if clean_flag else ''}\n")
+                            job_id = self.add_measurement(
+                                t, op_pos, clean=clean_flag)
+                            f.write(
+                                f"{job_id}:{t}:{op_pos}:{'c' if clean_flag else ''}\n")
                             if measurements == MAX_CONC_JOB_COUNT:
                                 return
                 for entry in self.__c_measurements[t]:
                     if isinstance(entry["data"], int):
                         measurements += 1
-                        job_id = self.add_measurement(t, entry["op_pos"], entry["cnots"])
+                        job_id = self.add_measurement(
+                            t, entry["op_pos"], entry["cnots"])
                         cstr = ",".join(map(str, entry["cnots"]))
                         f.write(f"{job_id}:{t}:{entry['op_pos']}:{cstr}\n")
                         if measurements == MAX_CONC_JOB_COUNT:
@@ -230,22 +241,24 @@ class measurement_manager:
             self.m_state.h(a)
 
     def counts_to_prob(self, counts):
-        res = zeros(1 << self.n_qubits)
+        res = np.zeros(1 << self.n_qubits)
         for bitstr, c in counts.items():
             res[int(bitstr, 2)] = c / self.n_shots
         return res
 
     def measure_state(self, circuit):
         """Run circuit and return probability distribution."""
-        res = zeros(1 << self.m_state.num_qubits)
+        res = np.zeros(1 << self.m_state.num_qubits)
         if self.execution_type == qutils.execution_type.simulator:
             circuit.measure_all()
-            counts = qutils.run_circuit(self.aer_sim, circuit, shots=self.n_shots)
+            counts = qutils.run_circuit(
+                self.aer_sim, circuit, shots=self.n_shots)
             res = self.counts_to_prob(counts)
         elif self.execution_type == qutils.execution_type.statevector:
             sim = AerSimulator(method="statevector")
             circuit.save_statevector()
-            statevector = asarray(sim.run(circuit).result().get_statevector(circuit))
+            statevector = np.asarray(
+                sim.run(circuit).result().get_statevector(circuit))
             res = np.abs(statevector) ** 2
         return res
 
@@ -253,5 +266,6 @@ class measurement_manager:
         return (
             sum(1 for m in self.__measurements.values() for e in m if e)
             + sum(len(v) for v in self.__c_measurements.values())
-            + sum(1 for m in self.__clean_measurements.values() for e in m if e)
+            + sum(1 for m in self.__clean_measurements.values()
+                  for e in m if e)
         )

@@ -6,10 +6,10 @@ import glob
 import argparse
 import yaml
 from typing import Any, Dict, List, Optional, Union
-from tqdm import tqdm
 
 import numpy as np
-from numpy import ndarray, reshape, linalg
+from numpy import ndarray, linalg
+from scipy.linalg import polar
 import qiskit
 
 import src.qutils as qutils
@@ -31,30 +31,18 @@ logging.getLogger("qiskit").setLevel(logging.WARNING)
 
 @ex.config
 def cfg():
-    # all text outputs from this run go here
-    out_dir = "experiments/runs"
+    out_dir = "experiments/runs"  # noqa: F841
+    experiment_config_root = "experiments/configs"  # noqa: F841
 
-    # where to find per-experiment folders like 000_name, 012_process, ...
-    experiment_config_root = "experiments/configs"
-
-    # execution defaults
-    execution = {
+    execution = {  # noqa: F841
         "type": "simulator",   # "simulator" | "ibm_qpu"
         "n_shots": 2**14,
-        "num_runs": 512,       # used only for simulator
+        "num_runs": 512,
         "verbosity": False,
     }
 
-    # experiment-level defaults (each folder can override via config.yaml)
-    experiment_defaults = {
-        "epsilon": 5e-2,
-        "tomography": "state",  # "state" | "process"
-        "partial_mixing": False,      # None => auto rule below
-        "job_file": None,
-        "masked": True,
-    }
+    notes = ""  # noqa: F841
 
-    notes = ""  # optional note attached to sacred run
 
 # ----------------- helpers -----------------
 
@@ -77,27 +65,68 @@ def _postprocess_log(state_obj: Union[ndarray, qiskit.QuantumCircuit],
         logger.info("No reconstruction returned.\n")
         return
 
+    # detect batch dimension
+    batched = res.ndim > 1 and res.shape[0] > 1
+    batch_size = res.shape[0] if batched else 1
+    # ---------------- case: ideal given as ndarray ----------------
     if isinstance(state_obj, np.ndarray):
-        rec = (reshape(res, (state_obj.shape[0], state_obj.shape[0])).T
-               if tomotype is qutils.tomography_type.process else res)
-        logger.info("Reconstructed %s:\n%s",
-                    "vector" if state_obj.ndim == 1 else "matrix", rec)
-        logger.info("%% Error: %s\n", 100 * linalg.norm(state_obj - rec))
+
+        print("wagh")
+        if tomotype is qutils.tomography_type.process:
+            d = state_obj.shape[0]
+            recs = res.reshape(batch_size, d, d).transpose(0, 2, 1) if batched \
+                else res.reshape(d, d).T
+        else:
+            recs = res
+
+        if batched:
+            errs = [100 * linalg.norm(state_obj - rec) for rec in recs]
+            logger.info("Reconstructed %d batch results", batch_size)
+            logger.info("Mean %% Error: %.3f, Std: %.3f",
+                        np.mean(errs), np.std(errs))
+        else:
+            logger.info("Reconstructed:\n%s", recs)
+            logger.info("%% Error: %s", 100 * linalg.norm(state_obj - recs))
         return
 
-    # QuantumCircuit
+    # ---------------- case: ideal given as QuantumCircuit ----------------
     if tomotype is qutils.tomography_type.process:
         ideal = qutils.circuit_to_unitary(state_obj)
-        rec = reshape(res, (ideal.shape[0], ideal.shape[0])).T
+        d = ideal.shape[0]
+        recs = res.reshape(batch_size, d, d).transpose(0, 2, 1) if batched \
+            else res.reshape(d, d).T
+
+        # frobenius normalization
+        if batched:
+            recs = np.array([M / np.linalg.norm(M, 'fro')
+                            * np.sqrt(d) for M in recs])
+        else:
+            recs = recs / np.linalg.norm(recs, 'fro') * np.sqrt(d)
+
+        # polar decomposition to nearest unitary
+        if batched:
+            recs = np.stack([polar(mat)[0] for mat in recs], axis=0)
+        else:
+            recs, _ = polar(recs)
     else:
         ideal = qutils.circuit_to_statevector(state_obj)
-        rec = res
+        recs = res
 
-    logger.info("Original %s:\n%s",
-                "vector" if ideal.ndim == 1 else "matrix", ideal)
-    logger.info("Reconstructed %s:\n%s",
-                "vector" if ideal.ndim == 1 else "matrix", rec)
-    logger.info("Fidelity: %s\n", _calc_fidelity(ideal, rec, tomotype))
+    if batched:
+        fids = [_calc_fidelity(ideal, rec, tomotype) for rec in recs]
+        logger.info("Original:\n%s", ideal)
+        logger.info("Processed %d reconstructions", batch_size)
+        for i, rec in enumerate(recs):
+            logger.info("Reconstruction %d:\n%s", i, rec)
+        logger.info("Mean Fidelity: %.4f, Std: %.4f",
+                    np.mean(fids), np.std(fids))
+        logger.info("Fidelities: %s", ", ".join(f"{f:.4f}" for f in fids))
+    else:
+        logger.info("Original:\n%s", ideal)
+        logger.info("Reconstructed:\n%s", recs)
+        logger.info("Fidelity: %.4f", _calc_fidelity(ideal, recs, tomotype))
+
+    logger.info("\n")
 
 
 def _exp_dir_for_id(exp_root: str, exp_id: int) -> str:
@@ -113,75 +142,79 @@ def _exp_dir_for_id(exp_root: str, exp_id: int) -> str:
 
 
 def _load_per_exp_cfg(exp_dir: str) -> Dict[str, Any]:
-    cfg_path = os.path.join(exp_dir, "config.yaml")
-    if os.path.isfile(cfg_path):
-        with open(cfg_path, "r") as f:
-            return yaml.safe_load(f) or {}
-    return {}
+    cfg_path = os.path.join(exp_dir, "standalone_run.yaml")
+    if not os.path.isfile(cfg_path):
+        raise FileNotFoundError(f"{exp_dir}: missing standalone_run.yaml")
+    with open(cfg_path, "r") as f:
+        return yaml.safe_load(f) or {}
 
 
-def _resolve_job_file(job_file: Optional[str]) -> Optional[str]:
-    if not job_file:
-        return None
-    # allow absolute or relative under ./jobs
-    return job_file if os.path.isabs(job_file) else (os.path.join("jobs", job_file) if os.path.exists(os.path.join("jobs", job_file)) else None)
+def _print_header(exp_id, exp_config):
+    logger.info(f"Experiment ID: {exp_id}")
+    logger.info(f"Backend: {exp_config['execution']['type']}")
+    logger.info(f"Shots: {exp_config['execution']['n_shots']}")
+    logger.info(
+        f"Num runs (batch size): {exp_config['execution']['num_runs']}")
+    logger.info(f"Tomography type: {exp_config['experiment']['tomography']}")
+    logger.info(
+        f"Partial mixing: {exp_config['experiment']['partial_mixing']}")
+    logger.info(f"Epsilon: {exp_config['experiment']['epsilon']}")
 
-
-def _print_header(exp_id: int, exec_type, mm: measurement_manager):
-    print(f"Experiment ID: {exp_id}")
-    print(f"Backend: {exec_type}")
-    print(f"Shots: {mm.n_shots}\n")
 
 # ----------------- core single-exp runner -----------------
 
 
-def _run_one(exp_id: int, out_dir: str, exp_root: str, execution: Dict[str, Any],
-             exp_defaults: Dict[str, Any], talg: "tomography") -> None:
+def _run_one(exp_id: int, out_dir: str, exp_root: str,
+             execution: Dict[str, Any], talg: "tomography") -> None:
     exp_dir = _exp_dir_for_id(exp_root, exp_id)
     circ = qutils.load_from_experiment_dir(exp_dir)
     if circ is None:
         raise FileNotFoundError(
             f"{exp_dir}: missing circuit.qpy or circuit.qasm")
 
-    local_cfg = _load_per_exp_cfg(exp_dir)
-    cfg = {**exp_defaults, **local_cfg}
+    cfg = _load_per_exp_cfg(exp_dir)
 
-    epsilon = float(cfg.get("epsilon", 5e-2))
-    tomotype = _tomotype_from_str(cfg.get("tomography", "state"))
-    partial_mixing = cfg.get("partial_mixing", None)
-    masked = bool(cfg.get("masked", True))
-    job_file = _resolve_job_file(cfg.get("job_file"))
+    _print_header(exp_id, cfg)
+
+    epsilon = float(cfg['experiment'].get("epsilon", 5e-2))
+    tomotype = _tomotype_from_str(cfg['experiment'].get("tomography", "state"))
+    partial_mixing = cfg['experiment'].get("partial_mixing", None)
+    masked = bool(cfg['execution'].get("masked", True))
+    num_runs = int(cfg['execution'].get("num_runs", 512))
+    n_shots = int(cfg['execution'].get("n_shots", 16384))
+    verbose = bool(cfg['execution'].get("verbose", False))
 
     if exp_id == 12:
         tomotype = qutils.tomography_type.process
 
-    exec_type = qutils.execution_type.simulator if execution[
-        "type"] == "simulator" else qutils.execution_type.ibm_qpu
-    n_shots = int(execution["n_shots"])
-    num_runs = int(execution["num_runs"])
-    verbose = bool(execution["verbosity"])
+    if cfg["execution"]["type"] == "simulator":
+        exec_type = qutils.execution_type.simulator
+    elif cfg["execution"]["type"] == "statevector":
+        exec_type = qutils.execution_type.statevector
+    elif cfg["execution"]["type"] == "ibm_qpu":
+        exec_type = qutils.execution_type.ibm_qpu
+    else:
+        raise ValueError(f"Unknown execution type: {execution['type']}")
 
     os.makedirs(out_dir, exist_ok=True)
 
     mm = measurement_manager(
-        n_shots=n_shots, execution_type=exec_type, verbose=verbose)
+        n_shots=n_shots, execution_type=exec_type, verbose=verbose, batch_size=num_runs)
     mm.set_state(tomography_type=tomotype, state=circ)
-    _print_header(exp_id, exec_type, mm)
 
-    for _ in tqdm(range(num_runs)):
-        res = talg.pure_state_tomography(mm=mm, tomography_type=tomotype,
-                                            verbose=verbose, job_file=job_file,
-                                            partial_mixing=partial_mixing, epsilon=epsilon, masked=masked)
-        _postprocess_log(circ, res, tomotype)
+    res = talg.pure_state_tomography(mm=mm, tomography_type=tomotype,
+                                     partial_mixing=partial_mixing, batch_size=num_runs, epsilon=epsilon, masked=masked)
+    _postprocess_log(circ, res, tomotype)
 
 
 # ----------------- Sacred entrypoint -----------------
 
 
 @ex.main
-def main(out_dir, experiment_config_root, execution, experiment_defaults, notes, _run):   
+def main(out_dir, experiment_config_root, execution, notes, _run):
     # find where Sacred is writing this run
-    fs_observer = next(obs for obs in _run.observers if isinstance(obs, FileStorageObserver))
+    fs_observer = next(obs for obs in _run.observers if isinstance(
+        obs, FileStorageObserver))
     run_dir = fs_observer.dir  # e.g. experiments/runs/1
     log_file = os.path.join(run_dir, "tomography.log")
 
@@ -209,8 +242,8 @@ def main(out_dir, experiment_config_root, execution, experiment_defaults, notes,
             "No experiment IDs were provided (batch file empty or missing).")
     talg = tomography()
     for exp_id in batch_ids:
-        _run_one(exp_id, out_dir, experiment_config_root,
-                 execution, experiment_defaults, talg)
+        _run_one(exp_id, out_dir, experiment_config_root, execution, talg)
+
 
 # ----------------- CLI wrapper: single batch file -----------------
 
@@ -267,11 +300,32 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(
         description="Run tomography from a single batch file of experiment IDs.")
-    ap.add_argument("--batch-file", required=True,
+    ap.add_argument("--batch-file", required=False,
                     help="Path like experiments/batches/<name>.yaml (bare list or {experiment_ids:[...]})")
     ap.add_argument("--update", nargs="*", default=[],
                     help="Optional dotted key=value overrides for Sacred config (e.g., execution.num_runs=64)")
     args = ap.parse_args()
+
+    if not args.batch_file:
+        batches_dir = os.path.join("experiments", "batches")
+        files = sorted(glob.glob(os.path.join(batches_dir, "*.yaml")))
+        if not files:
+            raise FileNotFoundError(f"No batch files found in {batches_dir}")
+
+        print("Available batch files:")
+        for i, f in enumerate(files):
+            print(f"[{i}] {os.path.basename(f)}")
+
+        while True:
+            try:
+                choice = int(input("Select a batch file by number: "))
+                if 0 <= choice < len(files):
+                    args.batch_file = files[choice]
+                    break
+                else:
+                    print("Invalid selection, try again.")
+            except ValueError:
+                print("Please enter a valid number.")
 
     batch_ids = _load_batch_ids(args.batch_file)
     if not batch_ids:

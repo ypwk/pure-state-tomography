@@ -144,7 +144,7 @@ def export_all():
 
         # Determine per-exp params
         epsilon = float(EPSILONS[exp_id])
-        tomography = "process" if exp_id == 12 else "state"
+        tomography = "process" if exp_id == 12 or exp_id == 13 else "state"
         partial_mixing_default = exp_id % 2 == 1  # odd IDs get True, even get False
 
         # ---- config.yaml (minimal per-experiment overrides) ----
@@ -158,14 +158,14 @@ def export_all():
         }
         write_yaml(os.path.join(exp_dir, "config.yaml"), per_exp_cfg)
 
-        # ---- standalone_run.yaml (full Sacred config if you want single-run use) ----
+        # ---- standalone_run.yaml ----
         standalone = {
             "out_dir": RUNS_DIR,
             "experiment_config_root": EXP_ROOT_FOR_RUNNER,
             "execution": {
                 "type": "simulator",
                 "n_shots": 16384,
-                "num_runs": 256,
+                "num_runs": 4,
                 "verbosity": False,
             },
             "experiment_defaults": {  # used by our latest runner; optional
