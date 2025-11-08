@@ -29,6 +29,8 @@ from enum import Enum
 
 import src.putils as putils
 
+from tqdm import tqdm
+
 EPSILON = 5e-2
 
 

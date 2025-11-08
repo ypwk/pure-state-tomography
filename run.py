@@ -11,6 +11,9 @@ import numpy as np
 from numpy import ndarray, linalg
 from scipy.linalg import polar
 import qiskit
+from qiskit_aer.noise import NoiseModel
+from qiskit_ibm_runtime.fake_provider import FakeFez
+from tqdm import tqdm
 
 import src.qutils as qutils
 from src.measurements import measurement_manager
@@ -70,8 +73,6 @@ def _postprocess_log(state_obj: Union[ndarray, qiskit.QuantumCircuit],
     batch_size = res.shape[0] if batched else 1
     # ---------------- case: ideal given as ndarray ----------------
     if isinstance(state_obj, np.ndarray):
-
-        print("wagh")
         if tomotype is qutils.tomography_type.process:
             d = state_obj.shape[0]
             recs = res.reshape(batch_size, d, d).transpose(0, 2, 1) if batched \
@@ -116,11 +117,11 @@ def _postprocess_log(state_obj: Union[ndarray, qiskit.QuantumCircuit],
         fids = [_calc_fidelity(ideal, rec, tomotype) for rec in recs]
         logger.info("Original:\n%s", ideal)
         logger.info("Processed %d reconstructions", batch_size)
-        for i, rec in enumerate(recs):
-            logger.info("Reconstruction %d:\n%s", i, rec)
+        # for i, rec in enumerate(recs):
+        #     logger.info("Reconstruction %d:\n%s", i, rec)
         logger.info("Mean Fidelity: %.4f, Std: %.4f",
                     np.mean(fids), np.std(fids))
-        logger.info("Fidelities: %s", ", ".join(f"{f:.4f}" for f in fids))
+        logger.info("Fidelities: %s", ", ".join(f"{f:.10f}" for f in fids))
     else:
         logger.info("Original:\n%s", ideal)
         logger.info("Reconstructed:\n%s", recs)
@@ -165,7 +166,7 @@ def _print_header(exp_id, exp_config):
 
 
 def _run_one(exp_id: int, out_dir: str, exp_root: str,
-             execution: Dict[str, Any], talg: "tomography") -> None:
+             execution: Dict[str, Any], talg: "tomography", noise_model: NoiseModel, _run=None) -> None:
     exp_dir = _exp_dir_for_id(exp_root, exp_id)
     circ = qutils.load_from_experiment_dir(exp_dir)
     if circ is None:
@@ -173,6 +174,11 @@ def _run_one(exp_id: int, out_dir: str, exp_root: str,
             f"{exp_dir}: missing circuit.qpy or circuit.qasm")
 
     cfg = _load_per_exp_cfg(exp_dir)
+
+    if _run is not None:
+        if "experiment_configs" not in _run.info:
+            _run.info["experiment_configs"] = {}
+        _run.info["experiment_configs"][str(exp_id)] = cfg
 
     _print_header(exp_id, cfg)
 
@@ -199,7 +205,7 @@ def _run_one(exp_id: int, out_dir: str, exp_root: str,
     os.makedirs(out_dir, exist_ok=True)
 
     mm = measurement_manager(
-        n_shots=n_shots, execution_type=exec_type, verbose=verbose, batch_size=num_runs)
+        n_shots=n_shots, execution_type=exec_type, verbose=verbose, batch_size=num_runs, noise_model=noise_model)
     mm.set_state(tomography_type=tomotype, state=circ)
 
     res = talg.pure_state_tomography(mm=mm, tomography_type=tomotype,
@@ -227,6 +233,7 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
     file_handler.setFormatter(logging.Formatter(
         "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
     ))
+    
     root.addHandler(file_handler)
     root.setLevel(logging.INFO)
 
@@ -241,8 +248,14 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
         raise ValueError(
             "No experiment IDs were provided (batch file empty or missing).")
     talg = tomography()
-    for exp_id in batch_ids:
-        _run_one(exp_id, out_dir, experiment_config_root, execution, talg)
+
+    if execution["type"] == "simulator":
+        backend = FakeFez()
+        noise_model = NoiseModel.from_backend(backend)
+
+    for exp_id in tqdm(batch_ids):
+        _run_one(exp_id, out_dir, experiment_config_root,
+                 execution, talg, noise_model, _run)
 
 
 # ----------------- CLI wrapper: single batch file -----------------

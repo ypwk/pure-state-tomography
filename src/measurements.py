@@ -2,8 +2,6 @@ import numpy as np
 
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator, StatevectorSimulator
-from qiskit_aer.noise import NoiseModel
-from qiskit_ibm_runtime.fake_provider import FakeBrisbane
 
 import src.putils as putils
 import src.qutils as qutils
@@ -12,7 +10,7 @@ MAX_CONC_JOB_COUNT = 3
 
 
 class measurement_manager:
-    def __init__(self, n_shots, execution_type, verbose: bool, batch_size: int = 1, partial_mixing: bool = False) -> None:
+    def __init__(self, n_shots, execution_type, verbose: bool, batch_size: int = 1, partial_mixing: bool = False, noise_model=None) -> None:
         self.n_shots = n_shots
         self.execution_type = execution_type
         self.verbose = verbose
@@ -32,14 +30,13 @@ class measurement_manager:
 
         if self.execution_type == qutils.execution_type.simulator:
             self.aer_sim = AerSimulator(
-                method="matrix_product_state", provider=FakeBrisbane(), device="GPU"
+                noise_model=noise_model, method="density_matrix", device="GPU"
             )
-            self.verboseprint("Available devices:",
-                              self.aer_sim.available_devices())
+
         elif self.execution_type == qutils.execution_type.statevector:
             self.aer_sim = StatevectorSimulator(
                 precision="double", device="GPU")
-            
+
             self.verboseprint("Using statevector simulator.")
         else:
             self.verboseprint(
@@ -118,7 +115,7 @@ class measurement_manager:
                         [1/np.sqrt(2), -1j/np.sqrt(2)]], q)
         elif measure_type == qutils.m_type.identity:
             qc.id(q)
-        
+
         return qc
 
     # ---------- Measurements ----------
