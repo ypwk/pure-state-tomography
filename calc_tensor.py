@@ -45,6 +45,6 @@ def tensor_from_string(op_string):
 
 # Example usage:
 if __name__ == "__main__":
-    op = "IIH"
+    op = "HI"
     mat = tensor_from_string(op)
     print(f"{op} =\n{mat}\n")

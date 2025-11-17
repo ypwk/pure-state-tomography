@@ -29,8 +29,6 @@ from enum import Enum
 
 import src.putils as putils
 
-from tqdm import tqdm
-
 EPSILON = 5e-2
 
 
@@ -139,25 +137,46 @@ def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, 
     # Block bitstring = bits of target_idx restricted to non-hadamards
     block_bitstring = target_idx & block_mask
 
-    # First index = keep only block bits (zero out hadamard bits)
-    first_idx = block_bitstring
+    batch = h_measure.shape[0]  # 128
 
-    # Second index = same but set the largest hadamard bit
-    max_idx = max(all_hadamards)
-    second_idx = first_idx | (1 << (num_qubits - 1 - max_idx))
+    had_list = sorted(all_hadamards)
+    k = len(had_list)
+    block_size = 1 << k  # 2^k
+
+    h_block_values = np.zeros((batch, block_size))
+    v_block_values = np.zeros((batch, block_size))
+
+    for bits in range(block_size):
+        idx = block_bitstring
+        for j, q in enumerate(had_list):
+            if (bits >> j) & 1:
+                idx |= (1 << (num_qubits - 1 - q))
+
+        h_block_values[:, bits] = h_measure[:, idx]
+        v_block_values[:, bits] = v_measure[:, idx]
+
+    # parity pattern for this block ordering
+    s = np.arange(block_size)
+    parity = np.vectorize(lambda x: x.bit_count() & 1)(s)  # 0 or 1
+    signs = 1 - 2 * parity  # even → +1, odd → -1
+
+    # Compute c and d for H and V measurements
+    h_c = np.sum(h_block_values[:, signs == +1], axis=1) * 2 / block_size
+    h_d = np.sum(h_block_values[:, signs == -1], axis=1) * 2 / block_size
+    v_c = np.sum(v_block_values[:, signs == +1], axis=1) * 2 / block_size
+    v_d = np.sum(v_block_values[:, signs == -1], axis=1) * 2 / block_size
 
     re = (
-        source_val[:, 0] * (h_measure[:, first_idx] - h_measure[:, second_idx])
-        + source_val[:, 1] * (v_measure[:, first_idx] -
-                              v_measure[:, second_idx])
-    ) * mixed_subspace_size / denom
-    im = (
-        source_val[:, 1] * (h_measure[:, first_idx] - h_measure[:, second_idx])
-        - source_val[:, 0] * (v_measure[:, first_idx] -
-                              v_measure[:, second_idx])
+        source_val[:, 0] * (h_c - h_d)
+        + source_val[:, 1] * (v_c - v_d)
     ) * mixed_subspace_size / denom
 
-    return np.stack([re, im], axis=1)  # (batch_size, 2)
+    im = (
+        source_val[:, 1] * (h_c - h_d)
+        - source_val[:, 0] * (v_c - v_d)
+    ) * mixed_subspace_size / denom
+
+    return np.stack([re, im], axis=1)  # (128, 2)
 
 
 def create_vector_circuit(state, n_qubits) -> QuantumCircuit:

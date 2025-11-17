@@ -99,17 +99,17 @@ EXP_ROOT_FOR_RUNNER = "experiments/configs"
 # Your original epsilon table, index-aligned 0..23
 EPSILONS = [
     5e-2, 5e-2,  # 0,1
-    5e-2, 5e-2,  # 2,3
-    5e-2, 5e-2,  # 4,5
-    5e-2, 5e-2,  # 6,7
-    5e-2, 5e-2,  # 8,9
-    5e-2, 5e-2,  # 10,11
-    5e-3, 5e-3,  # 12,13
-    5e-2, 5e-2,  # 14,15
-    5e-2, 5e-2,  # 16,17
-    5e-2, 5e-2,  # 18,19
-    5e-2, 5e-2,  # 20,21
-    5e-2, 5e-2,  # 22,23
+    9e-2, 9e-2,  # 2,3
+    9e-2, 9e-2,  # 4,5
+    9e-2, 9e-2,  # 6,7
+    9e-2, 9e-2,  # 8,9
+    9e-2, 9e-2,  # 10,11
+    9e-3, 9e-3,  # 12,13
+    9e-2, 9e-2,  # 14,15
+    9e-2, 9e-2,  # 16,17
+    9e-2, 9e-2,  # 18,19
+    9e-2, 9e-2,  # 20,21
+    9e-2, 9e-2,  # 22,23
 ]
 
 
@@ -165,7 +165,7 @@ def export_all():
             "execution": {
                 "type": "simulator",
                 "n_shots": 16384,
-                "num_runs": 128,
+                "num_runs": 1,
                 "verbosity": False,
             },
             "experiment_defaults": {  # used by our latest runner; optional

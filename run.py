@@ -12,12 +12,13 @@ from numpy import ndarray, linalg
 from scipy.linalg import polar
 import qiskit
 from qiskit_aer.noise import NoiseModel
-from qiskit_ibm_runtime.fake_provider import FakeFez
+from qiskit_ibm_runtime import fake_provider
 from tqdm import tqdm
 
 import src.qutils as qutils
 from src.measurements import measurement_manager
 from src.algorithm import tomography
+from src.noise_modeling import make_custom_noise_model
 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
@@ -40,8 +41,19 @@ def cfg():
     execution = {  # noqa: F841
         "type": "simulator",   # "simulator" | "ibm_qpu"
         "n_shots": 2**14,
-        "num_runs": 512,
+        "num_runs": 32,
         "verbosity": False,
+        "noise_model": {
+            "mode": "fake_backend",  # "fake_backend" | "custom" | "none"
+            "fake_backend": "FakeCusco",
+            "custom_params": {
+                "p_1q": 1e-4,
+                "p_2q": 1e-3,
+                "p_meas": 1e-4,
+                "coherent_phase": 0,
+                "n_qubits": 156,
+            },
+        },
     }
 
     notes = ""  # noqa: F841
@@ -153,6 +165,16 @@ def _load_per_exp_cfg(exp_dir: str) -> Dict[str, Any]:
 def _print_header(exp_id, exp_config):
     logger.info(f"Experiment ID: {exp_id}")
     logger.info(f"Backend: {exp_config['execution']['type']}")
+    if exp_config['execution'].get('type') == 'simulator':
+
+        if exp_config['execution'].get('noise_model'):
+            logger.info("Fake backend: %s",
+                        exp_config['execution']['noise_model'].get('fake_backend', 'FakeTorino'))
+            logger.info("Noise mode: %s",
+                        exp_config['execution']['noise_model'].get('mode', 'fake_backend'))
+        else:
+            logger.info("Fake backend: %s",
+                        exp_config['execution'].get('fake_backend', 'FakeTorino'))
     logger.info(f"Shots: {exp_config['execution']['n_shots']}")
     logger.info(
         f"Num runs (batch size): {exp_config['execution']['num_runs']}")
@@ -162,11 +184,41 @@ def _print_header(exp_id, exp_config):
     logger.info(f"Epsilon: {exp_config['experiment']['epsilon']}")
 
 
+def _get_fake_backend(name: str):
+    backend_cls = getattr(fake_provider, name, None)
+    if backend_cls is None or not callable(backend_cls):
+        raise ValueError(
+            f"Unknown fake backend '{name}' in execution.fake_backend")
+    return backend_cls()
+
+
+def _build_noise_model(execution_cfg: Dict[str, Any]) -> Optional[NoiseModel]:
+    """Construct a noise model based on execution settings."""
+    if execution_cfg.get("type") != "simulator":
+        return None
+
+    noise_cfg = execution_cfg.get("noise_model", {}) or {}
+    mode = noise_cfg.get("mode", "fake_backend")
+
+    if mode == "none":
+        return None
+    if mode == "custom":
+        params = noise_cfg.get("custom_params", {}) or {}
+        return make_custom_noise_model(**params)
+    if mode == "fake_backend":
+        backend_name = noise_cfg.get("fake_backend") or execution_cfg.get(
+            "fake_backend", "FakeTorino")
+        backend = _get_fake_backend(backend_name)
+        return NoiseModel.from_backend(backend)
+
+    raise ValueError(f"Unknown noise model mode: {mode}")
+
+
 # ----------------- core single-exp runner -----------------
 
 
 def _run_one(exp_id: int, out_dir: str, exp_root: str,
-             execution: Dict[str, Any], talg: "tomography", noise_model: NoiseModel, _run=None) -> None:
+             execution: Dict[str, Any], talg: "tomography", noise_model: Optional[NoiseModel], _run=None) -> None:
     exp_dir = _exp_dir_for_id(exp_root, exp_id)
     circ = qutils.load_from_experiment_dir(exp_dir)
     if circ is None:
@@ -233,7 +285,7 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
     file_handler.setFormatter(logging.Formatter(
         "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
     ))
-    
+
     root.addHandler(file_handler)
     root.setLevel(logging.INFO)
 
@@ -249,9 +301,20 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
             "No experiment IDs were provided (batch file empty or missing).")
     talg = tomography()
 
+    noise_cfg = execution.get("noise_model", {}) or {}
+    noise_mode = noise_cfg.get("mode", "fake_backend")
+    noise_model: Optional[NoiseModel] = _build_noise_model(execution)
     if execution["type"] == "simulator":
-        backend = FakeFez()
-        noise_model = NoiseModel.from_backend(backend)
+        if noise_mode == "fake_backend":
+            backend_name = noise_cfg.get("fake_backend") or execution.get(
+                "fake_backend", "FakeTorino")
+            logger.info(
+                "Using noise model from fake backend: %s", backend_name)
+        elif noise_mode == "custom":
+            logger.info("Using custom noise model params: %s",
+                        noise_cfg.get("custom_params", {}))
+        elif noise_mode == "none":
+            logger.info("Noise model disabled for simulator.")
 
     for exp_id in tqdm(batch_ids):
         _run_one(exp_id, out_dir, experiment_config_root,

@@ -12,6 +12,9 @@ from itertools import cycle
 RUNS_DIR = "experiments/runs"
 CONFIG_DIR = "plots/configs"
 
+MIN_ECDF = 1e-8
+MAX_ECDF = 9e-1
+
 # --- Matplotlib style for papers ---
 plt.rcParams.update({
     "font.size": 14,
@@ -321,6 +324,7 @@ def compare_experiments(exp_data, exp_labels, exp_pm, order,
 
             ax.set_xscale("log")
             ax.set_xlabel("Infidelity (1 - F)")
+            ax.set_xlim(MIN_ECDF, MAX_ECDF)
             ax.set_ylabel("ECDF")
             ax.set_ylim(0, 1.0)
             ax.set_title(f"ECDF Comparison Group {g_idx}")
@@ -355,6 +359,7 @@ def save_ecdf(data, exp_id, out_dir):
     ax.set_xscale("log")
     ax.set_xlabel("Infidelity (1 - F)")
     ax.set_ylabel("ECDF")
+    ax.set_xlim(MIN_ECDF, MAX_ECDF)
     ax.set_ylim(0, 1.0)
     ax.set_title(f"Experiment {exp_id}")
 
