@@ -239,6 +239,9 @@ class tomography:
 
             self.verboseprint(
                 f"Calculated target {target_idx} using source {source_idx}")
+            
+            # print(f"real: {real_m}")
+            # print(f"complex: {cmplx_m}")
 
             t_list.remove(target_idx)
             edge_idx += 1

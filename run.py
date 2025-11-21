@@ -14,6 +14,7 @@ import qiskit
 from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime import fake_provider
 from tqdm import tqdm
+from time import perf_counter
 
 import src.qutils as qutils
 from src.measurements import measurement_manager
@@ -45,7 +46,7 @@ def cfg():
         "verbosity": False,
         "noise_model": {
             "mode": "fake_backend",  # "fake_backend" | "custom" | "none"
-            "fake_backend": "FakeCusco",
+            "fake_backend": "FakeMarrakesh",
             "custom_params": {
                 "p_1q": 1e-4,
                 "p_2q": 1e-3,
@@ -316,9 +317,29 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
         elif noise_mode == "none":
             logger.info("Noise model disabled for simulator.")
 
-    for exp_id in tqdm(batch_ids):
+    total_start = perf_counter()
+
+    for exp_id in batch_ids:
+        exp_start = perf_counter()
+
         _run_one(exp_id, out_dir, experiment_config_root,
                  execution, talg, noise_model, _run)
+
+        exp_end = perf_counter()
+        exp_elapsed = exp_end - exp_start
+
+        print(
+            f"[TIMING] Experiment {exp_id} runtime: {exp_elapsed:.4f} seconds")
+
+    # ------------------ Overall Timing End ------------------
+    total_end = perf_counter()
+    total_elapsed = total_end - total_start
+
+    print("===================== TOTAL TIMING =====================")
+    print(f"Total runtime (sec): {total_elapsed:.4f}")
+    print(
+        f"Average per experiment (sec): {total_elapsed / len(batch_ids):.4f}")
+    print("=========================================================")
 
 
 # ----------------- CLI wrapper: single batch file -----------------

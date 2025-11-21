@@ -164,6 +164,7 @@ def export_all():
             "experiment_config_root": EXP_ROOT_FOR_RUNNER,
             "execution": {
                 "type": "simulator",
+                # "type": "statevector",
                 "n_shots": 16384,
                 "num_runs": 1,
                 "verbosity": False,

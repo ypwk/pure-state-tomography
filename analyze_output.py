@@ -56,7 +56,7 @@ def get_marker(exp_id):
 
 
 def list_and_select(dir_glob, prompt="Select:"):
-    files = sorted(glob.glob(dir_glob))
+    files = sorted(glob.glob(dir_glob), key=lambda x: int(os.path.basename(x)) if os.path.basename(x).isdigit() else os.path.basename(x))
     if not files:
         raise FileNotFoundError(f"No files found matching {dir_glob}")
     print(f"Available options in {dir_glob}:")
@@ -71,6 +71,61 @@ def list_and_select(dir_glob, prompt="Select:"):
                 print("Invalid selection.")
         except ValueError:
             print("Please enter a number.")
+
+
+def select_experiments(order, exp_data, exp_labels, exp_pm):
+    """Allow user to select experiments by ID number and ECDF x-axis limits."""
+    print("\nAvailable experiments:")
+    # Sort experiment IDs numerically for display
+    sorted_order = sorted(order)
+    for exp_id in sorted_order:
+        label = get_experiment_label(exp_id, exp_labels, exp_pm, latex=False)
+        print(f"  ID {exp_id}: {label} ({len(exp_data[exp_id])} fidelities)")
+
+    print("\nEnter experiment IDs to analyze (comma-separated, or 'all' for all experiments):")
+    user_input = input("> ").strip()
+
+    if user_input.lower() == 'all':
+        selected = order
+    else:
+        selected = []
+        for part in user_input.split(','):
+            part = part.strip()
+            if part:
+                try:
+                    exp_id = int(part)
+                    if exp_id in order:
+                        selected.append(exp_id)
+                    else:
+                        print(
+                            f"Warning: Experiment ID {exp_id} not found in this run, skipping.")
+                except ValueError:
+                    print(
+                        f"Warning: '{part}' is not a valid experiment ID, skipping.")
+
+        if not selected:
+            selected = order
+
+    # Ask about ECDF limits
+    print("\nSet custom ECDF x-axis limits? (y/n, default: n)")
+    set_limits = input("> ").strip().lower()
+
+    xlim = None
+    if set_limits == 'y':
+        print("Enter min infidelity (e.g., 1e-8, or press Enter for auto):")
+        min_input = input("> ").strip()
+        print("Enter max infidelity (e.g., 0.9, or press Enter for auto):")
+        max_input = input("> ").strip()
+
+        try:
+            xmin = float(min_input) if min_input else None
+            xmax = float(max_input) if max_input else None
+            xlim = (xmin, xmax)
+        except ValueError:
+            print("Invalid input, using automatic limits.")
+            xlim = None
+
+    return selected, xlim
 
 
 def _tokens_to_complex_vector(tokens):
@@ -203,6 +258,8 @@ def parse_experiment_fidelities(log_path):
                 vals = [float(x) for x in m2.group(1).split(",")]
                 exp_data[current_exp].extend(vals)
                 continue
+    
+    print(exp_data, exp_labels, exp_pm, order)
 
     return exp_data, exp_labels, exp_pm, order
 
@@ -265,7 +322,7 @@ def plot_ecdf(ax, data, exp_id, label):
 
 
 def compare_experiments(exp_data, exp_labels, exp_pm, order,
-                        groups, out_dir, mode="violin"):
+                        groups, out_dir, mode="violin", xlim=None):
     """Overlay experiment groups as violin plots or ECDFs."""
     import matplotlib.pyplot as plt
     import numpy as np
@@ -324,7 +381,13 @@ def compare_experiments(exp_data, exp_labels, exp_pm, order,
 
             ax.set_xscale("log")
             ax.set_xlabel("Infidelity (1 - F)")
-            ax.set_xlim(MIN_ECDF, MAX_ECDF)
+
+            # Set x-axis limits
+            if xlim:
+                xmin, xmax = xlim
+                if xmin is not None or xmax is not None:
+                    ax.set_xlim(xmin, xmax)
+
             ax.set_ylabel("ECDF")
             ax.set_ylim(0, 1.0)
             ax.set_title(f"ECDF Comparison Group {g_idx}")
@@ -343,7 +406,7 @@ def compare_experiments(exp_data, exp_labels, exp_pm, order,
         print(f"Saved {mode} plot → {out_file}.pdf/.png")
 
 
-def save_ecdf(data, exp_id, out_dir):
+def save_ecdf(data, exp_id, out_dir, xlim=None):
     """Save ECDF of infidelities with log-scaled x-axis (infidelity)."""
     if len(data) == 0:
         print(f"No fidelities for experiment {exp_id}")
@@ -359,7 +422,13 @@ def save_ecdf(data, exp_id, out_dir):
     ax.set_xscale("log")
     ax.set_xlabel("Infidelity (1 - F)")
     ax.set_ylabel("ECDF")
-    ax.set_xlim(MIN_ECDF, MAX_ECDF)
+
+    # Set x-axis limits
+    if xlim:
+        xmin, xmax = xlim
+        if xmin is not None or xmax is not None:
+            ax.set_xlim(xmin, xmax)
+
     ax.set_ylim(0, 1.0)
     ax.set_title(f"Experiment {exp_id}")
 
@@ -384,9 +453,7 @@ def main():
         return
 
     exp_data, exp_labels, exp_pm, order = parse_experiment_fidelities(log_path)
-    print(f"Found {len(order)} experiments in this run:")
-    for i, exp_id in enumerate(order, start=1):
-        print(f"  [{i}] Experiment {exp_id} ({len(exp_data[exp_id])} fidelities)")
+    print(f"\nFound {len(order)} experiments in this run.")
 
     # --- Select plotting config (1-indexed) ---
     cfg_file = list_and_select(os.path.join(
@@ -406,9 +473,12 @@ def main():
         compare_experiments(exp_data, exp_labels, exp_pm, order,
                             compare_list, fig_dir, mode=mode)
     else:
-        for exp_id in order:
+        # Allow user to select specific experiments by ID
+        selected, xlim = select_experiments(
+            order, exp_data, exp_labels, exp_pm)
+        for exp_id in selected:
             save_hist(exp_data[exp_id], exp_id, fig_dir, bins=bins)
-            save_ecdf(exp_data[exp_id], exp_id, fig_dir)
+            save_ecdf(exp_data[exp_id], exp_id, fig_dir, xlim=xlim)
 
 
 if __name__ == "__main__":

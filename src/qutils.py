@@ -15,6 +15,7 @@ necessary modules and classes:
 
 See each function's respective docstring for detailed usage and parameter information.
 """
+import time
 
 import numpy as np
 
@@ -160,23 +161,37 @@ def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, 
     parity = np.vectorize(lambda x: x.bit_count() & 1)(s)  # 0 or 1
     signs = 1 - 2 * parity  # even → +1, odd → -1
 
-    # Compute c and d for H and V measurements
-    h_c = np.sum(h_block_values[:, signs == +1], axis=1) * 2 / block_size
-    h_d = np.sum(h_block_values[:, signs == -1], axis=1) * 2 / block_size
-    v_c = np.sum(v_block_values[:, signs == +1], axis=1) * 2 / block_size
-    v_d = np.sum(v_block_values[:, signs == -1], axis=1) * 2 / block_size
+    pos_idx = np.where(signs == +1)[0]
+    neg_idx = np.where(signs == -1)[0]
 
-    re = (
-        source_val[:, 0] * (h_c - h_d)
-        + source_val[:, 1] * (v_c - v_d)
-    ) * mixed_subspace_size / denom
+    re_vals = []
+    im_vals = []
 
-    im = (
-        source_val[:, 1] * (h_c - h_d)
-        - source_val[:, 0] * (v_c - v_d)
-    ) * mixed_subspace_size / denom
+    for p in pos_idx:
+        for q in neg_idx:
+            h_c = 2 * h_block_values[:, p]
+            h_d = 2 * h_block_values[:, q]
+            v_c = 2 * v_block_values[:, p]
+            v_d = 2 * v_block_values[:, q]
 
-    return np.stack([re, im], axis=1)  # (128, 2)
+            re = (
+                source_val[:, 0] * (h_c - h_d)
+                + source_val[:, 1] * (v_c - v_d)
+            ) * mixed_subspace_size / denom
+
+            im = (
+                source_val[:, 1] * (h_c - h_d)
+                - source_val[:, 0] * (v_c - v_d)
+            ) * mixed_subspace_size / denom
+
+            re_vals.append(re)
+            im_vals.append(im)
+
+    # Average over all pos-neg combinations
+    re_mean = np.mean(np.stack(re_vals, axis=0), axis=0)
+    im_mean = np.mean(np.stack(im_vals, axis=0), axis=0)
+
+    return np.stack([re_mean, im_mean], axis=1)
 
 
 def create_vector_circuit(state, n_qubits) -> QuantumCircuit:
@@ -214,33 +229,35 @@ def create_matrix_circuit(state, n_qubits) -> QuantumCircuit:
 
 
 def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
-    """Runs the circuit on the simulator
-
-    Args:
-        qc (qiskit.QuantumCircuit): Quantum circuit to run
-        shots (int): Number of shots to take
-        batch_size (int): Number of batches to run
-
-    Returns:
-        numpy.np.ndarray: An np.array of result counts
-    """
+    """Runs the circuit on the simulator and prints runtime info."""
 
     dim = 1 << qc.num_qubits
     total_shots = shots
 
     def _counts_to_prob(counts):
-        res = np.zeros(1 << qc.num_qubits)
+        res = np.zeros(dim)
         for bitstr, c in counts.items():
             res[int(bitstr, 2)] = c / shots
         return res
 
-    t_qc = transpile(qc, aer_sim, optimization_level=1)
+    # Transpile and time execution
+    start_time = time.perf_counter()
+
+    t_qc = transpile(qc, aer_sim, optimization_level=0)
     results = np.zeros((batch_size, dim))
+
     for i in range(batch_size):
         job = aer_sim.run(t_qc, shots=total_shots,
                           seed_simulator=np.random.randint(1e9))
         counts = job.result().get_counts(t_qc)
         results[i] = _counts_to_prob(counts)
+
+    end_time = time.perf_counter()
+    elapsed = end_time - start_time
+
+    print(f"[run_circuit] Time elapsed: {elapsed:.6f} seconds "
+          f"({elapsed / batch_size:.6f} per batch)")
+
     return results
 
 

@@ -41,6 +41,16 @@ class measurement_manager:
         else:
             self.verboseprint(
                 f"Execution type {self.execution_type} is not supported.")
+        
+        # config = self.aer_sim.configuration()
+        # print("\n=== Aer Backend Configuration ===")
+        # for attr in dir(config):
+        #     if not attr.startswith("_"):
+        #         try:
+        #             value = getattr(config, attr)
+        #             print(f"{attr}: {value}")
+        #         except Exception:
+        #             pass
 
     # ---------- State setup ----------
     def set_state(self, tomography_type, state: np.ndarray | QuantumCircuit) -> None:
@@ -122,6 +132,7 @@ class measurement_manager:
     def add_measurement(self, measure_type, op_pos=0, cnots=(), hadamards=(), clean=False):
         """Perform measurement and store results in appropriate registry."""
         qc = self.build_circuit(measure_type, op_pos, cnots, hadamards, clean)
+        # print(f"qc: {qc}")
         res = self.measure_state(qc)
         self.num_measurements += 1
         entry = {"res": res, "str": str(qc) if self.verbose else "Not Verbose"}
@@ -180,6 +191,7 @@ class measurement_manager:
                 statevector = np.asarray(
                     sim.run(circ).result().get_statevector(circ))
                 results[i] = np.abs(statevector) ** 2
+        # print(f"circuit: \n{circ}\n{circuit}")
         return results
 
     def __len__(self):  # count stored measurements
