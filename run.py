@@ -13,7 +13,6 @@ from scipy.linalg import polar
 import qiskit
 from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime import fake_provider
-from tqdm import tqdm
 from time import perf_counter
 
 import src.qutils as qutils
@@ -205,11 +204,13 @@ def _build_noise_model(execution_cfg: Dict[str, Any]) -> Optional[NoiseModel]:
         return None
     if mode == "custom":
         params = noise_cfg.get("custom_params", {}) or {}
+        print("[noise] using custom noise model")
         return make_custom_noise_model(**params)
     if mode == "fake_backend":
         backend_name = noise_cfg.get("fake_backend") or execution_cfg.get(
             "fake_backend", "FakeTorino")
         backend = _get_fake_backend(backend_name)
+        print(f"[noise] using fake backend {backend_name}")
         return NoiseModel.from_backend(backend)
 
     raise ValueError(f"Unknown noise model mode: {mode}")

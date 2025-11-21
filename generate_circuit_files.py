@@ -166,7 +166,7 @@ def export_all():
                 "type": "simulator",
                 # "type": "statevector",
                 "n_shots": 16384,
-                "num_runs": 1,
+                "num_runs": 5,
                 "verbosity": False,
             },
             "experiment_defaults": {  # used by our latest runner; optional
