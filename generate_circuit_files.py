@@ -163,10 +163,10 @@ def export_all():
             "out_dir": RUNS_DIR,
             "experiment_config_root": EXP_ROOT_FOR_RUNNER,
             "execution": {
-                "type": "simulator",
-                # "type": "statevector",
+                # "type": "simulator",
+                "type": "statevector",
                 "n_shots": 16384,
-                "num_runs": 5,
+                "num_runs": 1,
                 "verbosity": False,
             },
             "experiment_defaults": {  # used by our latest runner; optional

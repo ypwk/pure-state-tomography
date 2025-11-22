@@ -116,18 +116,17 @@ def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, 
     Vectorized version for partial mixing case.
     Args:
         target_idx (int)
-        source_idx (int)
+        # source_idx (int)
         source_val (np.ndarray): (batch_size, 2)
         h_measure (np.ndarray): (batch_size, dim)
         v_measure (np.ndarray): (batch_size, dim)
     Returns:
         np.ndarray of shape (batch_size, 2)
     """
+    all_hadamards = set(hadamards) | {op_pos}
+    mixed_subspace_extra_size = putils.fast_pow(2, len(all_hadamards) - 1)  # need to scale to account for subspace scaling when mixed
     denom = 4 * (source_val[:, 0] ** 2 + source_val[:, 1] ** 2)
     num_qubits = putils.fast_log2(h_measure.shape[1])
-    all_hadamards = set(hadamards) | {op_pos}
-    mixed_subspace_size = putils.fast_pow(2, len(all_hadamards))
-
     non_hadamards = [i for i in range(num_qubits) if i not in all_hadamards]
 
     # Build mask of those non-hadamard bits
@@ -163,29 +162,34 @@ def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, 
 
     pos_idx = np.where(signs == +1)[0]
     neg_idx = np.where(signs == -1)[0]
+    
+    # print(f"pos idx {pos_idx}")
+    # print(f"pos idx {neg_idx}")
 
     re_vals = []
     im_vals = []
 
     for p in pos_idx:
         for q in neg_idx:
-            h_c = 2 * h_block_values[:, p]
-            h_d = 2 * h_block_values[:, q]
-            v_c = 2 * v_block_values[:, p]
-            v_d = 2 * v_block_values[:, q]
+            h_s = 2 * h_block_values[:, p]
+            h_t = 2 * h_block_values[:, q]
+            v_s = 2 * v_block_values[:, p]
+            v_t = 2 * v_block_values[:, q]
 
             re = (
-                source_val[:, 0] * (h_c - h_d)
-                + source_val[:, 1] * (v_c - v_d)
-            ) * mixed_subspace_size / denom
+                source_val[:, 0] * (h_s - h_t)
+                - source_val[:, 1] * (v_t - v_s)
+            ) / denom * mixed_subspace_extra_size
 
             im = (
-                source_val[:, 1] * (h_c - h_d)
-                - source_val[:, 0] * (v_c - v_d)
-            ) * mixed_subspace_size / denom
+                source_val[:, 0] * (v_t - v_s)
+                + source_val[:, 1] * (h_s - h_t)
+            ) / denom * mixed_subspace_extra_size
 
             re_vals.append(re)
             im_vals.append(im)
+            
+            # print(re_vals, im_vals)
 
     # Average over all pos-neg combinations
     re_mean = np.mean(np.stack(re_vals, axis=0), axis=0)

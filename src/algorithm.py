@@ -91,12 +91,17 @@ class tomography:
 
         if masked:
             self.identity_res = mm.add_measurement(
-                qutils.m_type.identity, 0, clean=True)
+                qutils.m_type.identity, 0, clean=True
+            )
 
         self.__iter_inf_helper(state, mm, dry=False)
 
         vector_form_result = np.array(
-            [(state[b, :, 0] + 1j * state[b, :, 1]) / np.linalg.norm((state[b, :, 0] + 1j * state[b, :, 1])) for b in range(batch_size)]
+            [
+                (state[b, :, 0] + 1j * state[b, :, 1])
+                / np.linalg.norm((state[b, :, 0] + 1j * state[b, :, 1]))
+                for b in range(batch_size)
+            ]
         )
 
         # if masked:
@@ -125,8 +130,7 @@ class tomography:
         id_m = mm.fetch(qutils.m_type.identity, 0)
         if dry and type(id_m) is str:
             return
-        nonzero_positions = qutils.find_nonzero_positions(
-            id_m[0], epsilon=self.epsilon)
+        nonzero_positions = qutils.find_nonzero_positions(id_m[0], epsilon=self.epsilon)
 
         if len(nonzero_positions) == 0:
             return
@@ -151,11 +155,8 @@ class tomography:
                     graph[a][b]["weight"] = putils.hamming(a, b)
         mst = minimum_spanning_tree(graph)
 
-        weighted_edges = [
-            edge for edge in mst.edges(data=True) if "weight" in edge[2]
-        ]
-        edges = sorted(
-            weighted_edges, key=lambda node: node[2].get("weight", 1))
+        weighted_edges = [edge for edge in mst.edges(data=True) if "weight" in edge[2]]
+        edges = sorted(weighted_edges, key=lambda node: node[2].get("weight", 1))
 
         edge_idx = 0
         while len(t_list) > 0 and edge_idx < len(edges):
@@ -171,17 +172,18 @@ class tomography:
 
             # construct measure operators with correct CNOT placement
             difference_bitstring = [
-                int(x) for x in "{:0{size}b}".format(source_idx ^ target_idx, size=mm.n_qubits)
+                int(x)
+                for x in "{:0{size}b}".format(source_idx ^ target_idx, size=mm.n_qubits)
             ]
             target_bitstring = [
                 int(x) for x in "{:0{size}b}".format(target_idx, size=mm.n_qubits)
             ]
             # locations where source and target index bitstrings differ
             difference_nonzero_locations = qutils.find_nonzero_positions(
-                difference_bitstring)
+                difference_bitstring
+            )
             # nonzero locations in target bitstring
-            target_nonzero_locations = qutils.find_nonzero_positions(
-                target_bitstring)
+            target_nonzero_locations = qutils.find_nonzero_positions(target_bitstring)
             op_pos = difference_nonzero_locations[0]
             nonzero = list(difference_nonzero_locations[1:])
 
@@ -196,9 +198,18 @@ class tomography:
                 hadamards = nonzero
 
                 real_m = mm.fetch(
-                    measure_type=qutils.m_type.real_hadamard, hadamards=hadamards, op_pos=op_pos)
+                    measure_type=qutils.m_type.real_hadamard,
+                    hadamards=hadamards,
+                    op_pos=op_pos,
+                )
                 cmplx_m = mm.fetch(
-                    measure_type=qutils.m_type.cmplx_hadamard, hadamards=hadamards, op_pos=op_pos)
+                    measure_type=qutils.m_type.cmplx_hadamard,
+                    hadamards=hadamards,
+                    op_pos=op_pos,
+                )
+
+                # print(f"Partial mixing real measurement: {real_m}")
+                # print(f"Partial mixing cmplex measurement: {cmplx_m}")
 
                 state[:, target_idx, :] = qutils.infer_partially_mixed_target(
                     target_idx=target_idx,
@@ -221,9 +232,16 @@ class tomography:
                             break
 
                 real_m = mm.fetch(
-                    measure_type=qutils.m_type.real_hadamard, cnots=cnots, op_pos=op_pos)
+                    measure_type=qutils.m_type.real_hadamard, cnots=cnots, op_pos=op_pos
+                )
                 cmplx_m = mm.fetch(
-                    measure_type=qutils.m_type.cmplx_hadamard, cnots=cnots, op_pos=op_pos)
+                    measure_type=qutils.m_type.cmplx_hadamard,
+                    cnots=cnots,
+                    op_pos=op_pos,
+                )
+
+                # print(f"Standard mixing real measurement: {real_m}")
+                # print(f"Standard mixing cmplex measurement: {cmplx_m}")
 
                 corrected_target = target_idx
                 for cnot in cnots:
@@ -238,8 +256,9 @@ class tomography:
                 )
 
             self.verboseprint(
-                f"Calculated target {target_idx} using source {source_idx}")
-            
+                f"Calculated target {target_idx} using source {source_idx}"
+            )
+
             # print(f"real: {real_m}")
             # print(f"complex: {cmplx_m}")
 

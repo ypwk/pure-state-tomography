@@ -30,12 +30,12 @@ class measurement_manager:
 
         if self.execution_type == qutils.execution_type.simulator:
             self.aer_sim = AerSimulator(
-                noise_model=noise_model, method="density_matrix", device="GPU"
+                noise_model=noise_model, method="density_matrix", device="CPU"
             )
 
         elif self.execution_type == qutils.execution_type.statevector:
             self.aer_sim = StatevectorSimulator(
-                precision="double", device="GPU")
+                precision="double", device="CPU")
 
             self.verboseprint("Using statevector simulator.")
         else:

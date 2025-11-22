@@ -39,7 +39,7 @@ def cfg():
     experiment_config_root = "experiments/configs"  # noqa: F841
 
     execution = {  # noqa: F841
-        "type": "simulator",   # "simulator" | "ibm_qpu"
+        "type": "simulator",  # "simulator" | "ibm_qpu"
         "n_shots": 2**14,
         "num_runs": 32,
         "verbosity": False,
@@ -63,19 +63,24 @@ def cfg():
 
 
 def _tomotype_from_str(s: str):
-    return qutils.tomography_type.state if s == "state" else qutils.tomography_type.process
+    return (
+        qutils.tomography_type.state if s == "state" else qutils.tomography_type.process
+    )
 
 
 def _calc_fidelity(ideal: np.ndarray, actual: np.ndarray, tomotype) -> float:
     if tomotype is qutils.tomography_type.process:
         d = ideal.shape[0]
-        inner = np.vdot(ideal.reshape(d*d), actual.reshape(d*d))
+        inner = np.vdot(ideal.reshape(d * d), actual.reshape(d * d))
         return float(abs(inner) / d)
     return float(abs(np.vdot(ideal, actual)))
 
 
-def _postprocess_log(state_obj: Union[ndarray, qiskit.QuantumCircuit],
-                     res: Optional[np.ndarray], tomotype):
+def _postprocess_log(
+    state_obj: Union[ndarray, qiskit.QuantumCircuit],
+    res: Optional[np.ndarray],
+    tomotype,
+):
     if res is None:
         logger.info("No reconstruction returned.\n")
         return
@@ -87,16 +92,18 @@ def _postprocess_log(state_obj: Union[ndarray, qiskit.QuantumCircuit],
     if isinstance(state_obj, np.ndarray):
         if tomotype is qutils.tomography_type.process:
             d = state_obj.shape[0]
-            recs = res.reshape(batch_size, d, d).transpose(0, 2, 1) if batched \
+            recs = (
+                res.reshape(batch_size, d, d).transpose(0, 2, 1)
+                if batched
                 else res.reshape(d, d).T
+            )
         else:
             recs = res
 
         if batched:
             errs = [100 * linalg.norm(state_obj - rec) for rec in recs]
             logger.info("Reconstructed %d batch results", batch_size)
-            logger.info("Mean %% Error: %.3f, Std: %.3f",
-                        np.mean(errs), np.std(errs))
+            logger.info("Mean %% Error: %.3f, Std: %.3f", np.mean(errs), np.std(errs))
         else:
             logger.info("Reconstructed:\n%s", recs)
             logger.info("%% Error: %s", 100 * linalg.norm(state_obj - recs))
@@ -106,15 +113,17 @@ def _postprocess_log(state_obj: Union[ndarray, qiskit.QuantumCircuit],
     if tomotype is qutils.tomography_type.process:
         ideal = qutils.circuit_to_unitary(state_obj)
         d = ideal.shape[0]
-        recs = res.reshape(batch_size, d, d).transpose(0, 2, 1) if batched \
+        recs = (
+            res.reshape(batch_size, d, d).transpose(0, 2, 1)
+            if batched
             else res.reshape(d, d).T
+        )
 
         # frobenius normalization
         if batched:
-            recs = np.array([M / np.linalg.norm(M, 'fro')
-                            * np.sqrt(d) for M in recs])
+            recs = np.array([M / np.linalg.norm(M, "fro") * np.sqrt(d) for M in recs])
         else:
-            recs = recs / np.linalg.norm(recs, 'fro') * np.sqrt(d)
+            recs = recs / np.linalg.norm(recs, "fro") * np.sqrt(d)
 
         # polar decomposition to nearest unitary
         if batched:
@@ -131,8 +140,7 @@ def _postprocess_log(state_obj: Union[ndarray, qiskit.QuantumCircuit],
         logger.info("Processed %d reconstructions", batch_size)
         # for i, rec in enumerate(recs):
         #     logger.info("Reconstruction %d:\n%s", i, rec)
-        logger.info("Mean Fidelity: %.4f, Std: %.4f",
-                    np.mean(fids), np.std(fids))
+        logger.info("Mean Fidelity: %.4f, Std: %.4f", np.mean(fids), np.std(fids))
         logger.info("Fidelities: %s", ", ".join(f"{f:.10f}" for f in fids))
     else:
         logger.info("Original:\n%s", ideal)
@@ -147,10 +155,10 @@ def _exp_dir_for_id(exp_root: str, exp_id: int) -> str:
     matches = sorted(glob.glob(pattern))
     if not matches:
         raise FileNotFoundError(
-            f"No directory for experiment {exp_id} under {exp_root} (expected {pattern})")
+            f"No directory for experiment {exp_id} under {exp_root} (expected {pattern})"
+        )
     if len(matches) > 1:
-        raise RuntimeError(
-            f"Ambiguous experiment directory for {exp_id}: {matches}")
+        raise RuntimeError(f"Ambiguous experiment directory for {exp_id}: {matches}")
     return matches[0]
 
 
@@ -165,30 +173,35 @@ def _load_per_exp_cfg(exp_dir: str) -> Dict[str, Any]:
 def _print_header(exp_id, exp_config):
     logger.info(f"Experiment ID: {exp_id}")
     logger.info(f"Backend: {exp_config['execution']['type']}")
-    if exp_config['execution'].get('type') == 'simulator':
+    if exp_config["execution"].get("type") == "simulator":
 
-        if exp_config['execution'].get('noise_model'):
-            logger.info("Fake backend: %s",
-                        exp_config['execution']['noise_model'].get('fake_backend', 'FakeTorino'))
-            logger.info("Noise mode: %s",
-                        exp_config['execution']['noise_model'].get('mode', 'fake_backend'))
+        if exp_config["execution"].get("noise_model"):
+            logger.info(
+                "Fake backend: %s",
+                exp_config["execution"]["noise_model"].get(
+                    "fake_backend", "FakeTorino"
+                ),
+            )
+            logger.info(
+                "Noise mode: %s",
+                exp_config["execution"]["noise_model"].get("mode", "fake_backend"),
+            )
         else:
-            logger.info("Fake backend: %s",
-                        exp_config['execution'].get('fake_backend', 'FakeTorino'))
+            logger.info(
+                "Fake backend: %s",
+                exp_config["execution"].get("fake_backend", "FakeTorino"),
+            )
     logger.info(f"Shots: {exp_config['execution']['n_shots']}")
-    logger.info(
-        f"Num runs (batch size): {exp_config['execution']['num_runs']}")
+    logger.info(f"Num runs (batch size): {exp_config['execution']['num_runs']}")
     logger.info(f"Tomography type: {exp_config['experiment']['tomography']}")
-    logger.info(
-        f"Partial mixing: {exp_config['experiment']['partial_mixing']}")
+    logger.info(f"Partial mixing: {exp_config['experiment']['partial_mixing']}")
     logger.info(f"Epsilon: {exp_config['experiment']['epsilon']}")
 
 
 def _get_fake_backend(name: str):
     backend_cls = getattr(fake_provider, name, None)
     if backend_cls is None or not callable(backend_cls):
-        raise ValueError(
-            f"Unknown fake backend '{name}' in execution.fake_backend")
+        raise ValueError(f"Unknown fake backend '{name}' in execution.fake_backend")
     return backend_cls()
 
 
@@ -208,7 +221,8 @@ def _build_noise_model(execution_cfg: Dict[str, Any]) -> Optional[NoiseModel]:
         return make_custom_noise_model(**params)
     if mode == "fake_backend":
         backend_name = noise_cfg.get("fake_backend") or execution_cfg.get(
-            "fake_backend", "FakeTorino")
+            "fake_backend", "FakeTorino"
+        )
         backend = _get_fake_backend(backend_name)
         print(f"[noise] using fake backend {backend_name}")
         return NoiseModel.from_backend(backend)
@@ -219,13 +233,19 @@ def _build_noise_model(execution_cfg: Dict[str, Any]) -> Optional[NoiseModel]:
 # ----------------- core single-exp runner -----------------
 
 
-def _run_one(exp_id: int, out_dir: str, exp_root: str,
-             execution: Dict[str, Any], talg: "tomography", noise_model: Optional[NoiseModel], _run=None) -> None:
+def _run_one(
+    exp_id: int,
+    out_dir: str,
+    exp_root: str,
+    execution: Dict[str, Any],
+    talg: "tomography",
+    noise_model: Optional[NoiseModel],
+    _run=None,
+) -> None:
     exp_dir = _exp_dir_for_id(exp_root, exp_id)
     circ = qutils.load_from_experiment_dir(exp_dir)
     if circ is None:
-        raise FileNotFoundError(
-            f"{exp_dir}: missing circuit.qpy or circuit.qasm")
+        raise FileNotFoundError(f"{exp_dir}: missing circuit.qpy or circuit.qasm")
 
     cfg = _load_per_exp_cfg(exp_dir)
 
@@ -236,13 +256,13 @@ def _run_one(exp_id: int, out_dir: str, exp_root: str,
 
     _print_header(exp_id, cfg)
 
-    epsilon = float(cfg['experiment'].get("epsilon", 5e-2))
-    tomotype = _tomotype_from_str(cfg['experiment'].get("tomography", "state"))
-    partial_mixing = cfg['experiment'].get("partial_mixing", None)
-    masked = bool(cfg['execution'].get("masked", True))
-    num_runs = int(cfg['execution'].get("num_runs", 512))
-    n_shots = int(cfg['execution'].get("n_shots", 16384))
-    verbose = bool(cfg['execution'].get("verbose", False))
+    epsilon = float(cfg["experiment"].get("epsilon", 5e-2))
+    tomotype = _tomotype_from_str(cfg["experiment"].get("tomography", "state"))
+    partial_mixing = cfg["experiment"].get("partial_mixing", None)
+    masked = bool(cfg["execution"].get("masked", True))
+    num_runs = int(cfg["execution"].get("num_runs", 512))
+    n_shots = int(cfg["execution"].get("n_shots", 16384))
+    verbose = bool(cfg["execution"].get("verbose", False))
 
     if exp_id == 12:
         tomotype = qutils.tomography_type.process
@@ -259,11 +279,22 @@ def _run_one(exp_id: int, out_dir: str, exp_root: str,
     os.makedirs(out_dir, exist_ok=True)
 
     mm = measurement_manager(
-        n_shots=n_shots, execution_type=exec_type, verbose=verbose, batch_size=num_runs, noise_model=noise_model)
+        n_shots=n_shots,
+        execution_type=exec_type,
+        verbose=verbose,
+        batch_size=num_runs,
+        noise_model=noise_model,
+    )
     mm.set_state(tomography_type=tomotype, state=circ)
 
-    res = talg.pure_state_tomography(mm=mm, tomography_type=tomotype,
-                                     partial_mixing=partial_mixing, batch_size=num_runs, epsilon=epsilon, masked=masked)
+    res = talg.pure_state_tomography(
+        mm=mm,
+        tomography_type=tomotype,
+        partial_mixing=partial_mixing,
+        batch_size=num_runs,
+        epsilon=epsilon,
+        masked=masked,
+    )
     _postprocess_log(circ, res, tomotype)
 
 
@@ -273,8 +304,9 @@ def _run_one(exp_id: int, out_dir: str, exp_root: str,
 @ex.main
 def main(out_dir, experiment_config_root, execution, notes, _run):
     # find where Sacred is writing this run
-    fs_observer = next(obs for obs in _run.observers if isinstance(
-        obs, FileStorageObserver))
+    fs_observer = next(
+        obs for obs in _run.observers if isinstance(obs, FileStorageObserver)
+    )
     run_dir = fs_observer.dir  # e.g. experiments/runs/1
     log_file = os.path.join(run_dir, "tomography.log")
 
@@ -284,9 +316,9 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
         root.removeHandler(h)
 
     file_handler = logging.FileHandler(log_file, mode="w")
-    file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-    ))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    )
 
     root.addHandler(file_handler)
     root.setLevel(logging.INFO)
@@ -300,7 +332,8 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
     batch_ids: List[int] = _run.info.get("batch_ids", [])
     if not batch_ids:
         raise ValueError(
-            "No experiment IDs were provided (batch file empty or missing).")
+            "No experiment IDs were provided (batch file empty or missing)."
+        )
     talg = tomography()
 
     noise_cfg = execution.get("noise_model", {}) or {}
@@ -309,12 +342,14 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
     if execution["type"] == "simulator":
         if noise_mode == "fake_backend":
             backend_name = noise_cfg.get("fake_backend") or execution.get(
-                "fake_backend", "FakeTorino")
-            logger.info(
-                "Using noise model from fake backend: %s", backend_name)
+                "fake_backend", "FakeTorino"
+            )
+            logger.info("Using noise model from fake backend: %s", backend_name)
         elif noise_mode == "custom":
-            logger.info("Using custom noise model params: %s",
-                        noise_cfg.get("custom_params", {}))
+            logger.info(
+                "Using custom noise model params: %s",
+                noise_cfg.get("custom_params", {}),
+            )
         elif noise_mode == "none":
             logger.info("Noise model disabled for simulator.")
 
@@ -323,14 +358,14 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
     for exp_id in batch_ids:
         exp_start = perf_counter()
 
-        _run_one(exp_id, out_dir, experiment_config_root,
-                 execution, talg, noise_model, _run)
+        _run_one(
+            exp_id, out_dir, experiment_config_root, execution, talg, noise_model, _run
+        )
 
         exp_end = perf_counter()
         exp_elapsed = exp_end - exp_start
 
-        print(
-            f"[TIMING] Experiment {exp_id} runtime: {exp_elapsed:.4f} seconds")
+        print(f"[TIMING] Experiment {exp_id} runtime: {exp_elapsed:.4f} seconds")
 
     # ------------------ Overall Timing End ------------------
     total_end = perf_counter()
@@ -338,8 +373,7 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
 
     print("===================== TOTAL TIMING =====================")
     print(f"Total runtime (sec): {total_elapsed:.4f}")
-    print(
-        f"Average per experiment (sec): {total_elapsed / len(batch_ids):.4f}")
+    print(f"Average per experiment (sec): {total_elapsed / len(batch_ids):.4f}")
     print("=========================================================")
 
 
@@ -365,12 +399,14 @@ def _load_batch_ids(batch_file: str) -> List[int]:
 
 
 if __name__ == "__main__":
+
     def parse_updates(kvs):
         """
         Parse dotted key=value pairs into a nested dict.
         Example:
           ["execution.num_runs=64", "experiment_defaults.epsilon=0.01", "out_dir=experiments/runs"]
         """
+
         def set_in(d, dotted, value):
             keys = dotted.split(".")
             cur = d
@@ -397,11 +433,19 @@ if __name__ == "__main__":
         return out
 
     ap = argparse.ArgumentParser(
-        description="Run tomography from a single batch file of experiment IDs.")
-    ap.add_argument("--batch-file", required=False,
-                    help="Path like experiments/batches/<name>.yaml (bare list or {experiment_ids:[...]})")
-    ap.add_argument("--update", nargs="*", default=[],
-                    help="Optional dotted key=value overrides for Sacred config (e.g., execution.num_runs=64)")
+        description="Run tomography from a single batch file of experiment IDs."
+    )
+    ap.add_argument(
+        "--batch-file",
+        required=False,
+        help="Path like experiments/batches/<name>.yaml (bare list or {experiment_ids:[...]})",
+    )
+    ap.add_argument(
+        "--update",
+        nargs="*",
+        default=[],
+        help="Optional dotted key=value overrides for Sacred config (e.g., execution.num_runs=64)",
+    )
     args = ap.parse_args()
 
     if not args.batch_file:
