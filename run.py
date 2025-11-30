@@ -51,7 +51,7 @@ def cfg():
                 "p_2q": 1e-3,
                 "p_meas": 1e-4,
                 "coherent_phase": 0,
-                "n_qubits": 156,
+                "n_qubits": 6,
             },
         },
     }
@@ -103,7 +103,8 @@ def _postprocess_log(
         if batched:
             errs = [100 * linalg.norm(state_obj - rec) for rec in recs]
             logger.info("Reconstructed %d batch results", batch_size)
-            logger.info("Mean %% Error: %.3f, Std: %.3f", np.mean(errs), np.std(errs))
+            logger.info("Mean %% Error: %.3f, Std: %.3f",
+                        np.mean(errs), np.std(errs))
         else:
             logger.info("Reconstructed:\n%s", recs)
             logger.info("%% Error: %s", 100 * linalg.norm(state_obj - recs))
@@ -121,7 +122,8 @@ def _postprocess_log(
 
         # frobenius normalization
         if batched:
-            recs = np.array([M / np.linalg.norm(M, "fro") * np.sqrt(d) for M in recs])
+            recs = np.array([M / np.linalg.norm(M, "fro")
+                            * np.sqrt(d) for M in recs])
         else:
             recs = recs / np.linalg.norm(recs, "fro") * np.sqrt(d)
 
@@ -140,7 +142,8 @@ def _postprocess_log(
         logger.info("Processed %d reconstructions", batch_size)
         # for i, rec in enumerate(recs):
         #     logger.info("Reconstruction %d:\n%s", i, rec)
-        logger.info("Mean Fidelity: %.4f, Std: %.4f", np.mean(fids), np.std(fids))
+        logger.info("Mean Fidelity: %.4f, Std: %.4f",
+                    np.mean(fids), np.std(fids))
         logger.info("Fidelities: %s", ", ".join(f"{f:.10f}" for f in fids))
     else:
         logger.info("Original:\n%s", ideal)
@@ -158,7 +161,8 @@ def _exp_dir_for_id(exp_root: str, exp_id: int) -> str:
             f"No directory for experiment {exp_id} under {exp_root} (expected {pattern})"
         )
     if len(matches) > 1:
-        raise RuntimeError(f"Ambiguous experiment directory for {exp_id}: {matches}")
+        raise RuntimeError(
+            f"Ambiguous experiment directory for {exp_id}: {matches}")
     return matches[0]
 
 
@@ -170,38 +174,40 @@ def _load_per_exp_cfg(exp_dir: str) -> Dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
-def _print_header(exp_id, exp_config):
+def _print_header(exp_id, execution, exp_config):
     logger.info(f"Experiment ID: {exp_id}")
     logger.info(f"Backend: {exp_config['execution']['type']}")
-    if exp_config["execution"].get("type") == "simulator":
-
-        if exp_config["execution"].get("noise_model"):
+    if execution.get("type") == "simulator":
+        if execution.get("noise_model"):
             logger.info(
                 "Fake backend: %s",
-                exp_config["execution"]["noise_model"].get(
+                execution["noise_model"].get(
                     "fake_backend", "FakeTorino"
                 ),
             )
             logger.info(
                 "Noise mode: %s",
-                exp_config["execution"]["noise_model"].get("mode", "fake_backend"),
+                execution["noise_model"].get("mode", "fake_backend"),
             )
         else:
             logger.info(
                 "Fake backend: %s",
-                exp_config["execution"].get("fake_backend", "FakeTorino"),
+                execution.get("fake_backend", "FakeTorino"),
             )
     logger.info(f"Shots: {exp_config['execution']['n_shots']}")
-    logger.info(f"Num runs (batch size): {exp_config['execution']['num_runs']}")
+    logger.info(
+        f"Num runs (batch size): {exp_config['execution']['num_runs']}")
     logger.info(f"Tomography type: {exp_config['experiment']['tomography']}")
-    logger.info(f"Partial mixing: {exp_config['experiment']['partial_mixing']}")
+    logger.info(
+        f"Partial mixing: {exp_config['experiment']['partial_mixing']}")
     logger.info(f"Epsilon: {exp_config['experiment']['epsilon']}")
 
 
 def _get_fake_backend(name: str):
     backend_cls = getattr(fake_provider, name, None)
     if backend_cls is None or not callable(backend_cls):
-        raise ValueError(f"Unknown fake backend '{name}' in execution.fake_backend")
+        raise ValueError(
+            f"Unknown fake backend '{name}' in execution.fake_backend")
     return backend_cls()
 
 
@@ -224,8 +230,45 @@ def _build_noise_model(execution_cfg: Dict[str, Any]) -> Optional[NoiseModel]:
             "fake_backend", "FakeTorino"
         )
         backend = _get_fake_backend(backend_name)
+
+        qiskit.visualization.plot_error_map(backend, figsize=(
+            15, 12), show_title=True, qubit_coordinates=None)
+
         print(f"[noise] using fake backend {backend_name}")
-        return NoiseModel.from_backend(backend)
+        noise_model = NoiseModel.from_backend(
+            backend,
+            gate_error=True,
+            readout_error=False,
+            thermal_relaxation=False,
+        )
+        print("\n=== Noise Model Summary ===")
+        print(noise_model)
+
+        props = backend.properties()
+
+        print("\n=== Backend Gate Error Summary ===")
+        props = backend.properties()
+
+        # One-qubit gates
+        print("\nSingle-qubit gates and errors:")
+        for g in props.gates:
+            if len(g.qubits) == 1:
+                q = g.qubits[0]
+                ge = [p.value for p in g.parameters if p.name == 'gate_error']
+                if ge:
+                    print(f"  {g.gate:<3} on q{q}: error = {ge[0]:.3e}")
+
+        # Two-qubit gates (CNOTs)
+        print("\nTwo-qubit gates (CNOT) and errors:")
+        for g in props.gates:
+            if g.gate in ("cx", "cz"):
+                qs = tuple(g.qubits)
+                ge = [p.value for p in g.parameters if p.name == 'gate_error']
+                if ge:
+                    print(f"  {g.gate.upper()} {qs}: error = {ge[0]:.3e}")
+
+        print("\n=================================\n")
+        return noise_model
 
     raise ValueError(f"Unknown noise model mode: {mode}")
 
@@ -245,7 +288,8 @@ def _run_one(
     exp_dir = _exp_dir_for_id(exp_root, exp_id)
     circ = qutils.load_from_experiment_dir(exp_dir)
     if circ is None:
-        raise FileNotFoundError(f"{exp_dir}: missing circuit.qpy or circuit.qasm")
+        raise FileNotFoundError(
+            f"{exp_dir}: missing circuit.qpy or circuit.qasm")
 
     cfg = _load_per_exp_cfg(exp_dir)
 
@@ -254,7 +298,7 @@ def _run_one(
             _run.info["experiment_configs"] = {}
         _run.info["experiment_configs"][str(exp_id)] = cfg
 
-    _print_header(exp_id, cfg)
+    _print_header(exp_id, execution, cfg)
 
     epsilon = float(cfg["experiment"].get("epsilon", 5e-2))
     tomotype = _tomotype_from_str(cfg["experiment"].get("tomography", "state"))
@@ -317,7 +361,8 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
 
     file_handler = logging.FileHandler(log_file, mode="w")
     file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+        logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(name)s - %(message)s")
     )
 
     root.addHandler(file_handler)
@@ -339,12 +384,14 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
     noise_cfg = execution.get("noise_model", {}) or {}
     noise_mode = noise_cfg.get("mode", "fake_backend")
     noise_model: Optional[NoiseModel] = _build_noise_model(execution)
+
     if execution["type"] == "simulator":
         if noise_mode == "fake_backend":
             backend_name = noise_cfg.get("fake_backend") or execution.get(
                 "fake_backend", "FakeTorino"
             )
-            logger.info("Using noise model from fake backend: %s", backend_name)
+            logger.info(
+                "Using noise model from fake backend: %s", backend_name)
         elif noise_mode == "custom":
             logger.info(
                 "Using custom noise model params: %s",
@@ -365,7 +412,8 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
         exp_end = perf_counter()
         exp_elapsed = exp_end - exp_start
 
-        print(f"[TIMING] Experiment {exp_id} runtime: {exp_elapsed:.4f} seconds")
+        print(
+            f"[TIMING] Experiment {exp_id} runtime: {exp_elapsed:.4f} seconds")
 
     # ------------------ Overall Timing End ------------------
     total_end = perf_counter()
@@ -373,7 +421,8 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
 
     print("===================== TOTAL TIMING =====================")
     print(f"Total runtime (sec): {total_elapsed:.4f}")
-    print(f"Average per experiment (sec): {total_elapsed / len(batch_ids):.4f}")
+    print(
+        f"Average per experiment (sec): {total_elapsed / len(batch_ids):.4f}")
     print("=========================================================")
 
 

@@ -35,6 +35,8 @@ def get_experiment_label(exp_id, exp_labels, exp_pm, latex=False):
         base = ", ".join([f"$x_{{{b}}}$" for b in base.split(", ")])
     if exp_pm.get(exp_id, False):
         base += r" (PM)" if not latex else r" (PM)"
+    else:
+        base += r" (CNOT)" if not latex else r" (CNOT)"
     return base
 
 

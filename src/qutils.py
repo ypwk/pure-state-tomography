@@ -124,7 +124,8 @@ def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, 
         np.ndarray of shape (batch_size, 2)
     """
     all_hadamards = set(hadamards) | {op_pos}
-    mixed_subspace_extra_size = putils.fast_pow(2, len(all_hadamards) - 1)  # need to scale to account for subspace scaling when mixed
+    # need to scale to account for subspace scaling when mixed
+    mixed_subspace_extra_size = putils.fast_pow(2, len(all_hadamards) - 1)
     denom = 4 * (source_val[:, 0] ** 2 + source_val[:, 1] ** 2)
     num_qubits = putils.fast_log2(h_measure.shape[1])
     non_hadamards = [i for i in range(num_qubits) if i not in all_hadamards]
@@ -162,7 +163,7 @@ def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, 
 
     pos_idx = np.where(signs == +1)[0]
     neg_idx = np.where(signs == -1)[0]
-    
+
     # print(f"pos idx {pos_idx}")
     # print(f"pos idx {neg_idx}")
 
@@ -188,7 +189,7 @@ def infer_partially_mixed_target(target_idx, source_idx, source_val, hadamards, 
 
             re_vals.append(re)
             im_vals.append(im)
-            
+
             # print(re_vals, im_vals)
 
     # Average over all pos-neg combinations
@@ -233,7 +234,7 @@ def create_matrix_circuit(state, n_qubits) -> QuantumCircuit:
 
 
 def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
-    """Runs the circuit on the simulator and prints runtime info."""
+    """Runs the circuit on the simulator and prints runtime info + transpiled circuit structure."""
 
     dim = 1 << qc.num_qubits
     total_shots = shots
@@ -245,9 +246,27 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
         return res
 
     # Transpile and time execution
-    start_time = time.perf_counter()
+    # start_time = time.perf_counter()
 
-    t_qc = transpile(qc, aer_sim, optimization_level=0)
+    t_qc = transpile(qc, aer_sim, optimization_level=0,
+                     layout_method="noise_adaptive")
+
+    # # ----------------------------------------------------------------------
+    # print("\n========== Transpiled Circuit ==========")
+    # print(t_qc)
+
+    # # Also print gate counts for quick comparison
+    # gcounts = t_qc.count_ops()
+    # print("Gate counts:", gcounts)
+
+    # # Optional: print depth & number of 2-qubit gates
+    # depth = t_qc.depth()
+    # num_cx = gcounts.get('cx', 0) or gcounts.get('CX', 0) or gcounts.get("cz", 0) or gcounts.get("CZ", 0)
+    # print(f"Circuit depth: {depth}, 2Q gates: {num_cx}")
+
+    # print("========================================\n")
+    # # ----------------------------------------------------------------------
+
     results = np.zeros((batch_size, dim))
 
     for i in range(batch_size):
@@ -256,11 +275,11 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
         counts = job.result().get_counts(t_qc)
         results[i] = _counts_to_prob(counts)
 
-    end_time = time.perf_counter()
-    elapsed = end_time - start_time
+    # end_time = time.perf_counter()
+    # elapsed = end_time - start_time
 
-    print(f"[run_circuit] Time elapsed: {elapsed:.6f} seconds "
-          f"({elapsed / batch_size:.6f} per batch)")
+    # print(f"[run_circuit] Time elapsed: {elapsed:.6f} seconds "
+    #       f"({elapsed / batch_size:.6f} per batch)")
 
     return results
 
