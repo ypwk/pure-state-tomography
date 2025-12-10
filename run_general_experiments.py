@@ -11,6 +11,7 @@ import numpy as np
 from numpy import ndarray, linalg
 from scipy.linalg import polar
 import qiskit
+from qiskit.visualization import plot_error_map
 from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime import fake_provider
 from time import perf_counter
@@ -44,14 +45,14 @@ def cfg():
         "num_runs": 32,
         "verbosity": False,
         "noise_model": {
-            "mode": "fake_backend",  # "fake_backend" | "custom" | "none"
-            "fake_backend": "FakeMarrakesh",
+            "mode": "custom",  # "fake_backend" | "custom" | "none"
+            "fake_backend": "FakeHanoiV2",
             "custom_params": {
-                "p_1q": 1e-4,
-                "p_2q": 1e-3,
-                "p_meas": 1e-4,
+                "p_1q": 4.239e-4,
+                "p_2q": 3.416e-3,
+                "p_meas": 1e-2,
                 "coherent_phase": 0,
-                "n_qubits": 6,
+                "n_qubits": 10,
             },
         },
     }
@@ -231,15 +232,17 @@ def _build_noise_model(execution_cfg: Dict[str, Any]) -> Optional[NoiseModel]:
         )
         backend = _get_fake_backend(backend_name)
 
-        qiskit.visualization.plot_error_map(backend, figsize=(
-            15, 12), show_title=True, qubit_coordinates=None)
+        # import matplotlib.pyplot as plt
+        # plot_error_map(backend, figsize=(
+        #     15, 12), show_title=True, qubit_coordinates=None)
+        # plt.show()
 
         print(f"[noise] using fake backend {backend_name}")
         noise_model = NoiseModel.from_backend(
             backend,
             gate_error=True,
-            readout_error=False,
-            thermal_relaxation=False,
+            readout_error=True,
+            thermal_relaxation=True,
         )
         print("\n=== Noise Model Summary ===")
         print(noise_model)
@@ -322,13 +325,28 @@ def _run_one(
 
     os.makedirs(out_dir, exist_ok=True)
 
-    mm = measurement_manager(
-        n_shots=n_shots,
-        execution_type=exec_type,
-        verbose=verbose,
-        batch_size=num_runs,
-        noise_model=noise_model,
-    )
+    noise_cfg = execution.get("noise_model", {}) or {}
+
+    if execution["type"] == "simulator":
+        backend_name = noise_cfg.get("fake_backend") or execution.get(
+            "fake_backend", "FakeTorino"
+        )
+        backend = _get_fake_backend(backend_name)
+        mm = measurement_manager(
+            n_shots=n_shots,
+            execution_type=exec_type,
+            verbose=verbose,
+            batch_size=num_runs,
+            noise_model=noise_model,
+        )
+    else:
+        mm = measurement_manager(
+            n_shots=n_shots,
+            execution_type=exec_type,
+            verbose=verbose,
+            batch_size=num_runs,
+            noise_model=noise_model,
+        )
     mm.set_state(tomography_type=tomotype, state=circ)
 
     res = talg.pure_state_tomography(
@@ -339,6 +357,7 @@ def _run_one(
         epsilon=epsilon,
         masked=masked,
     )
+
     _postprocess_log(circ, res, tomotype)
 
 

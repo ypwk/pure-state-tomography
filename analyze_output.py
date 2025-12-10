@@ -12,8 +12,8 @@ from itertools import cycle
 RUNS_DIR = "experiments/runs"
 CONFIG_DIR = "plots/configs"
 
-MIN_ECDF = 1e-8
-MAX_ECDF = 9e-1
+MIN_ECDF = 1e-6
+MAX_ECDF = 1e-3
 
 # --- Matplotlib style for papers ---
 plt.rcParams.update({
@@ -58,21 +58,33 @@ def get_marker(exp_id):
 
 
 def list_and_select(dir_glob, prompt="Select:"):
-    files = sorted(glob.glob(dir_glob), key=lambda x: int(os.path.basename(x)) if os.path.basename(x).isdigit() else os.path.basename(x))
+    files = sorted(
+        glob.glob(dir_glob),
+        key=lambda x: int(os.path.basename(x)) if os.path.basename(x).isdigit()
+        else os.path.basename(x)
+    )
     if not files:
         raise FileNotFoundError(f"No files found matching {dir_glob}")
+
     print(f"Available options in {dir_glob}:")
-    for i, f in enumerate(files, start=1):   # 1-indexed
+    for i, f in enumerate(files, start=1):  # 1-indexed
         print(f"[{i}] {os.path.basename(f)}")
+
     while True:
+        choice = input(f"{prompt} (1-{len(files)}, Enter = latest): ").strip()
+
+        # --- NEW: default to the last experiment if empty input
+        if choice == "":
+            return files[-1]
+
         try:
-            choice = int(input(f"{prompt} (1-{len(files)}): "))
-            if 1 <= choice <= len(files):
-                return files[choice-1]
+            choice_int = int(choice)
+            if 1 <= choice_int <= len(files):
+                return files[choice_int - 1]
             else:
                 print("Invalid selection.")
         except ValueError:
-            print("Please enter a number.")
+            print("Please enter a number or press Enter for latest.")
 
 
 def select_experiments(order, exp_data, exp_labels, exp_pm):
@@ -260,7 +272,7 @@ def parse_experiment_fidelities(log_path):
                 vals = [float(x) for x in m2.group(1).split(",")]
                 exp_data[current_exp].extend(vals)
                 continue
-    
+
     print(exp_data, exp_labels, exp_pm, order)
 
     return exp_data, exp_labels, exp_pm, order
@@ -312,6 +324,7 @@ def plot_ecdf(ax, data, exp_id, label):
         infid_sorted[::step], y[::step],
         linestyle="none", marker=marker, color=color, markersize=5
     )
+    # ax.set_xlim(MIN_ECDF, MAX_ECDF)
 
     # Add combined line+marker handle for legend
     handle = Line2D([0], [0],
@@ -364,9 +377,9 @@ def compare_experiments(exp_data, exp_labels, exp_pm, order,
             if "cmeans" in parts:
                 parts['cmeans'].set_color("blue")
 
-            ax.set_xticks(range(0, len(labels)))
-            ax.set_xticklabels([get_experiment_label(order[idx], latex=True)
-                               for idx in indices], rotation=30, ha="right")
+            ax.set_xticks(range(1, len(labels) + 1))
+            ax.set_xticklabels(labels, rotation=25, ha="right")
+
             ax.set_yscale("log")
             ax.set_ylabel("Infidelity (1 - F)")
             ax.set_title(f"Violin Plot Comparison Group {g_idx}")
@@ -430,6 +443,7 @@ def save_ecdf(data, exp_id, out_dir, xlim=None):
         xmin, xmax = xlim
         if xmin is not None or xmax is not None:
             ax.set_xlim(xmin, xmax)
+    ax.set_xlim(MIN_ECDF, MAX_ECDF)
 
     ax.set_ylim(0, 1.0)
     ax.set_title(f"Experiment {exp_id}")

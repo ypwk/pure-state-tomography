@@ -233,7 +233,7 @@ def create_matrix_circuit(state, n_qubits) -> QuantumCircuit:
     return qc
 
 
-def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
+def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1, base_seed: int = 42) -> np.ndarray:
     """Runs the circuit on the simulator and prints runtime info + transpiled circuit structure."""
 
     dim = 1 << qc.num_qubits
@@ -248,12 +248,31 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
     # Transpile and time execution
     # start_time = time.perf_counter()
 
-    t_qc = transpile(qc, aer_sim, optimization_level=0,
-                     layout_method="noise_adaptive")
+    # hanoi
+    # physical_qubits = [0, 1, 4, 7, 10, 12, 13, 14, 16, 19]
+
+    # # ibm brisbane
+    # # physical_qubits = [120, 121, 122, 123, 124, 125]
+    # # physical_qubits = [0, 14, 18, 19, 20, 21]
+    # initial_layout = [physical_qubits[_]
+    #                   for _ in range(min(qc.num_qubits, len(physical_qubits)))]
+    # # print(f"[qutils] initial_layout {initial_layout}")
+
+    t_qc = transpile(
+        qc,
+        aer_sim,
+        optimization_level=0,
+        # initial_layout=initial_layout,
+        layout_method="trivial",         # keep your mapping, don't be “smart”
+    )
 
     # # ----------------------------------------------------------------------
     # print("\n========== Transpiled Circuit ==========")
+    # print("Transpiled circuit:")
     # print(t_qc)
+
+    # print("Original circuit:")
+    # print(qc)
 
     # # Also print gate counts for quick comparison
     # gcounts = t_qc.count_ops()
@@ -261,7 +280,8 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
 
     # # Optional: print depth & number of 2-qubit gates
     # depth = t_qc.depth()
-    # num_cx = gcounts.get('cx', 0) or gcounts.get('CX', 0) or gcounts.get("cz", 0) or gcounts.get("CZ", 0)
+    # num_cx = gcounts.get('cx', 0) or gcounts.get(
+    #     'CX', 0) or gcounts.get("cz", 0) or gcounts.get("CZ", 0)
     # print(f"Circuit depth: {depth}, 2Q gates: {num_cx}")
 
     # print("========================================\n")
@@ -270,8 +290,12 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1) -> np.ndarray:
     results = np.zeros((batch_size, dim))
 
     for i in range(batch_size):
-        job = aer_sim.run(t_qc, shots=total_shots,
-                          seed_simulator=np.random.randint(1e9))
+        sim_seed = base_seed + i
+        job = aer_sim.run(
+            t_qc,
+            shots=total_shots,
+            seed_simulator=sim_seed,
+        )
         counts = job.result().get_counts(t_qc)
         results[i] = _counts_to_prob(counts)
 

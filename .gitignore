@@ -146,3 +146,4 @@ final_rundata/
 apikey.json
 
 experiments/runs
+experiments/runs_noise_sweep

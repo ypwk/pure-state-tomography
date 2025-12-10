@@ -88,6 +88,48 @@ def make_state(experiment_num: int):
         state.cx(2, 3)
         state.cx(3, 4)
         state.cx(4, 5)
+    elif experiment_num < 26:  # 7-qubit chain
+        state = qiskit.QuantumCircuit(7)
+        state.h(0)
+        state.cx(0, 1)
+        state.cx(1, 2)
+        state.cx(2, 3)
+        state.cx(3, 4)
+        state.cx(4, 5)
+        state.cx(5, 6)
+    elif experiment_num < 28:  # 8-qubit chain
+        state = qiskit.QuantumCircuit(8)
+        state.h(0)
+        state.cx(0, 1)
+        state.cx(1, 2)
+        state.cx(2, 3)
+        state.cx(3, 4)
+        state.cx(4, 5)
+        state.cx(5, 6)
+        state.cx(6, 7)
+    elif experiment_num < 30:  # 9-qubit chain
+        state = qiskit.QuantumCircuit(9)
+        state.h(0)
+        state.cx(0, 1)
+        state.cx(1, 2)
+        state.cx(2, 3)
+        state.cx(3, 4)
+        state.cx(4, 5)
+        state.cx(5, 6)
+        state.cx(6, 7)
+        state.cx(7, 8)
+    elif experiment_num < 32:  # 10-qubit chain
+        state = qiskit.QuantumCircuit(10)
+        state.h(0)
+        state.cx(0, 1)
+        state.cx(1, 2)
+        state.cx(2, 3)
+        state.cx(3, 4)
+        state.cx(4, 5)
+        state.cx(5, 6)
+        state.cx(6, 7)
+        state.cx(7, 8)
+        state.cx(8, 9)
     return state
 
 
@@ -110,6 +152,10 @@ EPSILONS = [
     9e-2, 9e-2,  # 18,19
     9e-2, 9e-2,  # 20,21
     9e-2, 9e-2,  # 22,23
+    9e-2, 9e-2,  # 24,25
+    9e-2, 9e-2,  # 26,27
+    9e-2, 9e-2,  # 28,29
+    9e-2, 9e-2,  # 30,31
 ]
 
 
@@ -123,7 +169,7 @@ def write_yaml(path: str, obj) -> None:
 
 
 def export_all():
-    for exp_id in range(24):
+    for exp_id in range(32):
         exp_dir = os.path.join(OUT_ROOT, f"{exp_id:03d}_auto")
         ensure_dir(exp_dir)
 
@@ -166,7 +212,7 @@ def export_all():
                 "type": "simulator",
                 # "type": "statevector",
                 "n_shots": 16384,
-                "num_runs": 128,
+                "num_runs": 512,
                 "verbosity": False,
             },
             "experiment_defaults": {  # used by our latest runner; optional

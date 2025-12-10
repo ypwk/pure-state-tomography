@@ -1,0 +1,4 @@
+mode: "ecdf"
+group_by: "system_size"
+xlim_min: 1e-6
+xlim_max: 1e-1

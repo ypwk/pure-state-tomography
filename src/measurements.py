@@ -10,7 +10,7 @@ MAX_CONC_JOB_COUNT = 3
 
 
 class measurement_manager:
-    def __init__(self, n_shots, execution_type, verbose: bool, batch_size: int = 1, partial_mixing: bool = False, noise_model=None) -> None:
+    def __init__(self, n_shots, execution_type, verbose: bool, batch_size: int = 1, partial_mixing: bool = False, noise_model=None, backend=None) -> None:
         self.n_shots = n_shots
         self.execution_type = execution_type
         self.verbose = verbose
@@ -29,9 +29,14 @@ class measurement_manager:
         self.__clean_measurements = None
 
         if self.execution_type == qutils.execution_type.simulator:
-            self.aer_sim = AerSimulator(
-                noise_model=noise_model, method="density_matrix", device="CPU"
-            )
+            if noise_model is not None and backend is not None:
+                raise ValueError("Cannot set noise model and backend at the same time!!")
+            if noise_model is not None:
+                self.aer_sim = AerSimulator(
+                    noise_model=noise_model, method="density_matrix", device="CPU"
+                )
+            if backend is not None:
+                self.aer_sim = AerSimulator.from_backend(backend=backend)
 
         elif self.execution_type == qutils.execution_type.statevector:
             self.aer_sim = StatevectorSimulator(
