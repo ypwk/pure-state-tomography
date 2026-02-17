@@ -38,9 +38,6 @@ logging.getLogger("qiskit").setLevel(logging.WARNING)
 def cfg():
     out_dir = "experiments/runs"  # noqa: F841
     experiment_config_root = "experiments/configs"  # noqa: F841
-    algorithm = {  # noqa: F841
-        "name": "mst",   # e.g. "mst" | "gulbahar"
-    }
     execution = {  # noqa: F841
         "type": "simulator",  # "simulator" | "ibm_qpu"
         "n_shots": 2**14,
@@ -362,7 +359,7 @@ def _run_one(
             masked=masked,
         )
     else:
-        res = gulbahar(
+        res = cai(
             state=circ
         )
 
