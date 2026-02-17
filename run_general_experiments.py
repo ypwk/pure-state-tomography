@@ -38,7 +38,9 @@ logging.getLogger("qiskit").setLevel(logging.WARNING)
 def cfg():
     out_dir = "experiments/runs"  # noqa: F841
     experiment_config_root = "experiments/configs"  # noqa: F841
-
+    algorithm = {  # noqa: F841
+        "name": "mst",   # e.g. "mst" | "gulbahar"
+    }
     execution = {  # noqa: F841
         "type": "simulator",  # "simulator" | "ibm_qpu"
         "n_shots": 2**14,
@@ -283,6 +285,7 @@ def _run_one(
     exp_id: int,
     out_dir: str,
     exp_root: str,
+    algorithm: Dict[str, Any],
     execution: Dict[str, Any],
     talg: "tomography",
     noise_model: Optional[NoiseModel],
@@ -327,36 +330,41 @@ def _run_one(
 
     noise_cfg = execution.get("noise_model", {}) or {}
 
-    if execution["type"] == "simulator":
-        backend_name = noise_cfg.get("fake_backend") or execution.get(
-            "fake_backend", "FakeTorino"
-        )
-        backend = _get_fake_backend(backend_name)
-        mm = measurement_manager(
-            n_shots=n_shots,
-            execution_type=exec_type,
-            verbose=verbose,
+    if algorithm["name"] == "baseline":
+        if execution["type"] == "simulator":
+            backend_name = noise_cfg.get("fake_backend") or execution.get(
+                "fake_backend", "FakeTorino"
+            )
+            backend = _get_fake_backend(backend_name)
+            mm = measurement_manager(
+                n_shots=n_shots,
+                execution_type=exec_type,
+                verbose=verbose,
+                batch_size=num_runs,
+                noise_model=noise_model,
+            )
+        else:
+            mm = measurement_manager(
+                n_shots=n_shots,
+                execution_type=exec_type,
+                verbose=verbose,
+                batch_size=num_runs,
+                noise_model=noise_model,
+            )
+        mm.set_state(tomography_type=tomotype, state=circ)
+
+        res = talg.pure_state_tomography(
+            mm=mm,
+            tomography_type=tomotype,
+            partial_mixing=partial_mixing,
             batch_size=num_runs,
-            noise_model=noise_model,
+            epsilon=epsilon,
+            masked=masked,
         )
     else:
-        mm = measurement_manager(
-            n_shots=n_shots,
-            execution_type=exec_type,
-            verbose=verbose,
-            batch_size=num_runs,
-            noise_model=noise_model,
+        res = gulbahar(
+            state=circ
         )
-    mm.set_state(tomography_type=tomotype, state=circ)
-
-    res = talg.pure_state_tomography(
-        mm=mm,
-        tomography_type=tomotype,
-        partial_mixing=partial_mixing,
-        batch_size=num_runs,
-        epsilon=epsilon,
-        masked=masked,
-    )
 
     _postprocess_log(circ, res, tomotype)
 
@@ -365,7 +373,7 @@ def _run_one(
 
 
 @ex.main
-def main(out_dir, experiment_config_root, execution, notes, _run):
+def main(out_dir, experiment_config_root, algorithm, execution, notes, _run):
     # find where Sacred is writing this run
     fs_observer = next(
         obs for obs in _run.observers if isinstance(obs, FileStorageObserver)
@@ -425,7 +433,7 @@ def main(out_dir, experiment_config_root, execution, notes, _run):
         exp_start = perf_counter()
 
         _run_one(
-            exp_id, out_dir, experiment_config_root, execution, talg, noise_model, _run
+            exp_id, out_dir, experiment_config_root, algorithm, execution, talg, noise_model, _run
         )
 
         exp_end = perf_counter()
