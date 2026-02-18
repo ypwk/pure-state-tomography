@@ -1,0 +1,1116 @@
+                                                         K-sparse Pure State Tomography with Phase Estimation∗
+
+                                                                                          Burhan Gulbahar†
+
+                                                                     Department of Electrical and Electronics Engineering,
+                                                                              Yasar University, Izmir, Turkey
+
+                                                                                   (Dated: November 16, 2021)
+                                                      Quantum state tomography (QST) for reconstructing pure states requires exponentially
+arXiv:2111.04359v2 [quant-ph] 15 Nov 2021
+
+
+
+
+                                                   increasing resources and measurements with the number of qubits by using state-of-the-art
+                                                   quantum compressive sensing (CS) methods. In this article, QST reconstruction for any pure
+                                                   state composed of the superposition of K different computational basis states of n qubits in a
+                                                   specific measurement set-up, i.e., denoted as K-sparse, is achieved without any initial knowl-
+                                                   edge and with quantum polynomial-time complexity of resources based on the assumption of
+                                                   the existence of polynomial size quantum circuits for implementing exponentially large pow-
+                                                   ers of a specially designed unitary operator. The algorithm includes O(2 / |ck |2 ) repetitions
+                                                   of conventional phase estimation algorithm depending on the probability |ck |2 of the least
+                                                   possible basis state in the superposition and O(d K (logK)c ) measurement settings with con-
+                                                   ventional quantum CS algorithms independent from the number of qubits while dependent
+                                                   on K for constant c and d. Quantum phase estimation algorithm is exploited based on the
+                                                   favorable eigenstructure of the designed operator to represent any pure state as a super-
+                                                   position of eigenvectors. Linear optical set-up is presented for realizing the special unitary
+                                                   operator which includes beam splitters and phase shifters where propagation paths of single
+                                                   photon are tracked with which-path-detectors. Quantum circuit implementation is provided
+                                                   by using only CNOT, phase shift and −π / 2 rotation gates around X-axis in Bloch sphere,
+                                                   i.e., RX (−π / 2), allowing to be realized in NISQ devices. Open problems are discussed
+                                                   regarding the existence of the unitary operator and its practical circuit implementation.
+
+
+
+
+                                                                                     I.    INTRODUCTION
+
+                                                Quantum state tomography (QST) determines an unknown state by making measurements on
+                                            identical copies with highly important applications in various areas of quantum technologies [1–3].
+                                            QST and process estimation tasks for characterizing and reconstructing purposes generally require
+                                            exponential amount of measurements O(22n ) with the number of qubits n without any knowledge
+                                            about the state. Low-rank density matrices with rank r ≪ 2n approximating pure states are
+                                            reconstructed with O(r 2n nc ) Pauli measurements for a constant c ∈ [2, 6] by exploiting compressive
+                                            sensing (CS) with convex or non-convex programming approaches [4–6] and experimental studies
+                                            [7]. Linear optical methods are already utilized such as in [8] for multi-mode multi-photon states
+                                            where finite number of linear optical interferometer configurations are used. The       reconstruction
+                                            method requires ♯P-hard matrix permanent calculations with O poly(Dn,M , 2n ) complexity where
+                                                                                                                         n
+                                            n is the number of photons, M is the number of modes and Dn,M = n−M              .
+                                                In this article, QST of any pure state of n qubits composed of the superposition of K different
+                                            computational basis states in a specific measurement set-up, i.e., denoted as K-sparse pure state, is
+                                            achieved in quantum polynomial-time without any knowledge about the state including the value of
+                                            K based on assumptions about the implementation of the black-boxes of specially designed unitary
+                                            operator UΦ                                                                               2j
+                                                        ~ . It is assumed that exponentially large powers of UΦ                       ~ operations
+                                                                                                                ~ , i.e., controlled-UΦ
+                                            for finite j, can be implemented with polynomial size quantum circuits. Then, the main QST
+                                            ∗
+                                              This work was supported by TUBITAK (The Scientific and Technical Research Council of Turkey) under Grant
+                                              #119E584.
+                                            †
+                                              burhan.gulbahar@yasar.edu.tr
+                                                                                                      2
+
+
+problem for n qubits is basically converted to the problem of quantum CS based QST of log(K)
+qubits by creating independence from the number of qubits n for√finite K ≪ 2n .
+    Firstly, an ancillary single qubit initialized to (|0i + |1i) / 2 is included by increasing the
+number of qubits to n + 1. After applying n-qubit Hadamard transform to the pure state, QST
+problem for the resulting n + 1 qubits is shown to be equivalent to conventional phase estimation
+problem for estimating eigenvalues and projecting onto eigenvectors of UΦ   ~ . Here, we mainly exploit
+favorable structure of the eigenvectors of UΦ ~  to represent any input  pure   state as a superposition
+of eigenvectors of UΦ  ~ with the help of ancillary qubit. Then, the application of conventional
+phase estimation algorithm determines unknown computational basis states composing the pure
+state. After learning the basis locations of sparsity, i.e., the unknown K different computational
+basis states, the conventional quantum CS methods are applied to estimate K different complex
+superposition coefficients.
+    We present a linear optical set-up to realize such a unitary operator. It is motivated by the
+target of tracking the evolution of single photons through consecutive beam splitters (BSs) and
+phase shifters by using consecutive which-path-detectors (WPDs) after each BS. We exploit the
+surprising eigenstructure of the designed set-up. WPDs allow to track the evolution of photons in
+various settings [9]. In addition, quantum circuit implementation of UΦ   ~ is presented to be realized
+in universal quantum computers or noisy-intermediate scale quantum (NISQ) devices.
+    More specifically, consider the following state in the problem definition composed of the super-
+position of K different computational basis states of n qubits, i.e., denoted as K-sparse pure state,
+for estimation with QST. The problem is defined as follows.
+
+Definition 1. K-sparse pure state reconstruction problem: Estimate the unknown values
+and reconstruct any pure state being in a superposition of K different computational basis states of
+n qubits defined as follows:
+                                        K
+                                        X
+                                |Ψi =         ck eı ϑk |sk,n sk,n−1 . . . sk,1 i                    (1)
+                                        k=1
+
+where ck > 0 and ck eı ϑk is the complex superposition coefficient of the unknown computational
+basis state |sk,n sk,n−1 . . . sk,1 i with unknown values of sk,j = 0 or 1 for j ∈ [1, n] and K ≪ 2n .
+The unknown values to be estimated are ck and ϑk for k ∈ [1, K], the number of superposition
+components K and sk,j for j ∈ [1, n], i.e., the locations of sparsity, without any initial knowledge
+about the state. The structure of the computational basis states for each qubit, i.e., |0i and |1i, is
+initially defined depending on the measurement set-up.
+
+    Observe that the sparsity is defined with respect to the chosen computational basis states of
+each qubit, i.e., |0i and |1i, in the measurement set-up. The computational basis state of each
+qubit depends on the given measurement set-up and the pure state to be estimated is assumed to
+have finite number of superposition components without knowing the exact value of K.
+    In classical CS, the problem is defined in [10] as finding the minimum L1 -norm with x  b =
+argmin kx′ k1 such that y = Θ x′ where y is the measurement result, x is the unknown vector and
+Θ is a Gaussian matrix. It is observed that if x is K-sparse, then Θ with the dimension M × N
+is enough where M = c K log(N / K) is the number of measurements with constant c and N is
+the dimension of the signal x. The computational complexity of the solution with basis pursuit
+is O(N 3 ). In quantum CS, e.g., with convex solution [4], randomly chosen Pauli expectations
+tr(Pk ρ) are utilized to minimize kσktr where tr(Pk σ) = tr(Pk ρ) where kσktr denotes the sum of
+                        Nthe
+the singular values of σ,     unknown density matrix is ρ, M is the number of measurements with
+                          n
+k ∈ [1, M ] and Pk ≡            k                                       k       x   y   z
+                          j=1 Pi is a random Pauli measurement with Pi ∈ {1, σ , σ , σ }. M is
+                                                                                                         3
+
+
+mainly reduced from the requirement of roughly 22n measurements to 2n measurements by using
+CS based on the assumption of the purity of the sampled state.
+    There are diverse number of studies utilizing quantum CS or alternative approaches in more
+practical manners for further reducing the number of measurements and the required resources
+such as online learning and shadow tomography [11, 12], self-calibrating quantum state tomogra-
+phy by relaxing the blind tomography problem to sparse de-mixing [13] and hierarchical compressed
+sensing [14], adaptive compressive tomography without a-priori information [15], reduced density
+matrices [16, 17], matrix product state tomography [2, 18], neural network [19], machine learn-
+ing [20] based approaches or different methods including [21]. There is not any polynomial-time
+quantum algorithm or solution method available for exactly reconstructing K-sparse pure states
+in (1), i.e., K-sparse vectors in dimension 2n , with neither quantum nor classical polynomial-time
+resource complexity. It is an open issue to achieve L1 -norm minimization based QST of K-sparse
+pure states with quantum algorithms of polynomial-time complexity.
+    In this article, we provide an alternative quantum polynomial-time solution withO(d K (logK)c )
+measurement settings for K-sparse pure states in parallel with O c K log(2n / K) measurements
+in classical CS without any complexity exponentially growing with 2n . On the other hand, the
+computational complexity is also maintained as quantum polynomial-time providing a complete
+practicality in QST tasks in analogy with the practical utilization of CS in classical world with
+exponentially smaller dimensions compared with the Hilbert space size of quantum states. We
+provide the locations of the K-sparse points without solving any L1 -norm minimization problem
+with a different perspective compared with conventional CS. Phase estimation presents a new
+approach for QST of pure states while encouraging the design of new unitary operators UΦ       ~ with
+the proposed eigenstructure and practical implementation capability. It is an open issue to realize
+polynomial size quantum circuit implementations for exponentially large powers of the presented
+specific design based on linear optics and WPDs. Furthermore, analyzing the effects of noise in
+input state and estimation errors are important for practical considerations [7, 22]. Extension to
+mixed state inputs is also an open issue.
+    The proposed architecture is promising to be utilized in all state estimation and process modeling
+tasks [1–3, 11]. Quantifying the amount of entanglement existing in a quantum state is another
+potential application [23]. Quantification generally requires full state tomography and complex
+calculations for entanglement monotones [24]. Furthermore, the proposed method can be utilized
+to map classical states into eigenvectors of UΦ  ~ for various machine learning procedures similar to
+embedding into the amplitude, basis or the dynamics of quantum systems through Hamiltonian
+embedding [25], or using various quantum feature map operators [26–28]. The embedded classical
+data is extracted reliably in quantum polynomial-time by using the proposed QST architecture.
+    One fundamental theorem and supporting conjecture are formulated in this article. Theorem-1
+reduces the exponential amount of resources and measurements necessary in conventional QST and
+quantum CS algorithms to quantum polynomial-time resources as follows:
+Theorem 1. There exists a unitary operator UΦ            ~ with a specially defined eigenstructure to be
+utilized in quantum phase estimation algorithm so that any K-sparse n-qubit pure state can be
+reconstructed after O(1 / m) repetitions
+                                             of conventional t-bit quantum phase estimation algorithm
+with et ≈ t + log 2 + 1 / (2 ǫ) ancillary qubits having success probability of at least (1 − ǫ)
+and consecutive O(d K (logK)c ) measurement settings based on existing quantum CS methods for
+c ∈ [2, 6] and some constant d reducing the error exponentially. m is such that the number of
+repetitions is O(2 / mink∈[1,K]{|ck |2 }) independent from the number of qubits while depending on
+the probability |ck |2 of the least probable basis state in the superposition for k ∈ [1, K]. It is assumed
+                          j
+that black-boxes of U ~2 are available for j ∈ [0, e  t − 1].
+                      Φ
+
+Proof. The proof is provided in Section II.
+                                                                                                        4
+
+
+   The supporting conjecture proposes that unitary operators UΦ  ~ with the special eigenstructure
+exploited in Theorem-1 can be realized by using polynomial size quantum circuits and linear optics.
+Conjecture 1. There exist a unitary operator UΦ        ~ and its   polynomial size quantum circuit im-
+                                                                     
+                                                    −π       1   1  ı
+plementation composed of CNOT gates, RX ( 2 ) ≡ √2                      gates and phase shifters Φj ≡
+                                                                  ı 1
+         
+  1 0
+            for j ∈ [1, n + 1] such that it has distinct eigenvalues and unique pairs of eigenvec-
+  0 eı φj                                                                                              
+tors with the form specified as quantum states      H ⊗n |sk,n sk,n−1 . . . sk,1 i αk,0 |0i + αk,1 |1i or
+H ⊗n |sk,n sk,n−1 . . . sk,1 i βk,0 |0i + βk,1 |1i corresponding to each |sk,n sk,n−1 . . . sk,1 i for k ∈
+[1, 2n ]. The parameters of a pair of eigenvectors satisfy the relation such that the parameters of the
+first eigenvector are αk,0 = a0 + ı b0 and αk,1 = a1 with a0 , b0 and a1 ∈ R and a20 + b20 + a21 = 1 and
+the parameters of the other eigenvector are βk,0 = a1 and βk,1 = −a0 + ı b0 (or their multiplication
+with arbitrary phase). The parameters αk,0 , αk,1 , βk,0 and βk,1 depend on φj for j ∈ [1, n + 1],
+H ⊗n is n-qubit Hadamard transform and |sk,n sk,n−1 . . . sk,1 i denotes computational basis state
+with sk,j = 0 or 1 for j ∈ [1, n]. The existence of the operator satisfying the specific form of
+eigenstructure depends on the chosen set φj for j ∈ [1, n + 1].
+    Theoretical analysis and supporting evidence are provided in Section V A. Linear optical set-up
+is provided in Section III to realize such unitary operators where it is motivated by consecutive
+WPDs tracking the evolution of a single photon in a linear optical set-up. In Section IV, quantum
+circuit implementation is provided for the set-up. Numerical analysis shows that if uniformly
+distributed phase shifts are utilized in the linear optical design or the proposed quantum circuit
+implementation, then UΦ   ~ with the specific form of eigenstructure is obtained. However, it is an open
+issue to determine the conditions on the phase shift values under which the proposed eigenstructure
+is satisfied. This is the reason that we provide the result as a conjecture.
+    The remainder of the paper is organized as follows. In Section II, QST algorithm is presented.
+In Section III, linear optical set-up providing a design of the targeted UΦ    ~ is presented. Then, in
+Section IV, quantum circuit implementation for the designed operator is provided. Eigenstructure
+of UΦ~ is analyzed in Section V. Open problems are presented in Section VI.
+
+
+
+                  II.   K-SPARSE PURE STATE TOMOGRAPHY ALGORITHM
+
+   QST problem is converted to eigenvector estimation problem by using the eigenvalues estimated
+with phase estimation algorithm [29, 30]. The algorithm is summarized in Algorithm-1 with two
+important phases. The proof of Theorem-1 and the description of the algorithm are provided next.
+Proof of Theorem-1: Assume that there exists a special unitary transform UΦ          ~ with a favorable
+eigenstructure as described next. In the first phase, the unknown state |Ψi is firstly converted to
+the following by using n-qubit Hadamard transformation and an ancillary qubit to encode as the
+superposition of the eigenvectors of UΦ     ~:
+
+          XK                                            
+                  ı ϑk ⊗n                      |0i + |1i
+  |Ψe i =     ck e H      |sk,n . . . sk,1 i      √                                                  (2)
+          k=1
+                                                    2
+          XK                                                                                      
+                  ı ϑk ⊗n
+                                                                                                
+        =     ck e H      |sk,n . . . sk,1 i dk,1 αk,0 |0i + αk,1 |1i + dk,2 βk,0 |0i + βk,1 |1i     (3)
+           k=1
+           XK
+                                                        
+       =         ck eı ϑk dk,1 |Ek,1 i + dk,2 |Ek,2 i                                                 (4)
+           k=1
+                                                                                                                                                              5
+
+
+                 Algorithm 1: K-sparse pure state tomography with phase estimation
+       st
+   1        PHASE:
+                                              PK
+            1. Initial pure state: |Ψi = k=1 ck eı ϑk |sk,n sk,n−1 . . . sk,1 i with unknown K, ck , ϕk and
+               |sk,n sk,n−1 . . . sk,1 i for k ∈ [1, K]
+                                                        √
+            2. Add an ancillary state (|0i + |1i) / 2 and apply n-qubit Hadamard transformation to |Ψi by
+               transforming into a superposition of eigenvectors of the unitary operator UΦ   ~:
+
+                                K
+                                X                                                                              K
+                                                                                                                 X                   X
+                                                                                                                                      2                   
+                                             ı ϑk       ⊗n                                   |0i + |1i                        ı ϑk
+                      |Ψe i =         ck e          H        |sk,n sk,n−1 . . . sk,1 i          √            =         ck e                dk,l |Ek,l i
+                                k=1
+                                                                                                  2              k=1                 l=1
+
+
+            3. Apply phase estimation and collapse the state to |λg           k,1 i |Ek,l i for l ∈ [1, 2] with probabilities
+               |ck |2 |dk,1 |2 = |ck |2 (1/2 + ak,0 ak,1 ) and |ck |2 |dk,2 |2 = |ck |2 (1/2 − ak,0 ak,1 ).
+            4. Apply n-qubit Hadamard transformation to the second register except the ancillary qubit             
+               converting the measured state to either |λg      k,1 i |sk,n sk,n−1 . . . sk,1 i αk,0 |0i + αk,1 |1i or
+                                                                      
+               |λg
+                 k,2 i |sk,n sk,n−1 . . . sk,1 i βk,0 |0i + βk,1 |1i .
+
+            5. Measure the second register except the ancillary qubit to obtain |sk,n sk,n−1 . . . sk,1 i.
+            6. Perform the first five steps O(2 / mink∈[1,K] {|ck |2 }) times completing the estimation of K and
+               |sk,n sk,n−1 . . . sk,1 i for k ∈ [1, K].
+   2nd PHASE:
+            1. |Ψi is estimated by converting the problem to QST problem of log(K)-qubit pure states by using
+               the projection operators Pk ≡ |sk,n sk,n−1 . . . sk,1 i hsk,1 . . . sk,n−1 sk,n | and I − Pk since the states
+               |sk,n sk,n−1 . . . sk,1 i for k ∈ [1, K] are obtained in the first phase of the algorithm. Existing
+               quantum CS methods are utilized in this step which require O(d K (logK)c ) measurement settings
+               for c ∈ [2, 6] and constant d while completing the calculation of ck eı ϕk for k ∈ [1, K].
+
+
+
+where |Ek,1 i and |Ek,2 i are eigenvectors of UΦ    ~ , {dk,1 , dk,2 } ∈ C, αk,0 ≡ ak,0 + ı bk,0 , αk,1 = ak,1
+for the parameters {ak,0 , ak,1 , bk,0 } ∈ R, and it is assumed that there is a special relation between
+the values of αk,j and βk,j for j ∈ [0, 1], i.e., denoted as duality relation, defined as βk,0 = ak,1 and
+βk,1 = − ak,0 + ı bk,0 (or multiplication of βk,0 and βk,1 with arbitrary phase, e.g., −1). All the
+parameters depend on phase shift values in the design of UΦ           ~ where eigenvectors |Ek,1 i and |Ek,2 i
+are defined as follows:
+                                                                                   
+                          |Ek,1 i ≡ H ⊗n |sk,n . . . sk,1 i αk,0 |0i + αk,1 |1i                            (5)
+                                         ⊗n
+                                                                                   
+                          |Ek,2 i ≡ H       |sk,n . . . sk,1 i βk,0 |0i + βk,1 |1i                         (6)
+   We assumed that UΦ  ~ has a special eigenstructure with the pair of eigenvectors |Ek,1 i and |Ek,2 i
+corresponding to each unique |sk,n sk,n−1 . . . sk,1 i such that these eigenvectors are separable pure
+                     only in terms of the state of the first qubit, i.e., as αk,0 |0i + αk,1 |1i or
+states and they differ
+ βk,0 |0i + βk,1 |1i . Furthermore, our assumption includes the special duality relation between
+the values of αk,j and βk,j for j ∈ [0, 1] as described. In addition, it is assumed that all the
+eigenvalues of UΦ~ are different which will be exploited during phase estimation as described next.
+   The parameters dk,1 and dk,2 with |dk,1 |2 + |dk,2 |2 = 1 are calculated easily if {ak,0 , ak,1 , bk,0 }
+are known. They satisfy the following for βk,0 = ak,1 and βk,1 = −ak,0 + ı bk,0 :
+                                                                                   ∗
+                                                                           βk,0 + βk,1
+                                                      βk,0 − βk,1
+                                               dk,1 =     √       ; dk,2 =     √                                                                          (7)
+                                                            2                    2
+We observe that |dk,1 |2 = (1/2 + ak,0 ak,1 ) and |dk,2 |2 = (1/2 − ak,0 ak,1 ). Then, phase estimation
+                                                                                                                                6
+
+
+
+
+FIG. 1. Estimation of a single computational √basis state |sk,n sk,n−1 . . . sk,1 i by using phase estimation               √ 
+algorithm. Ancillary qubit state (|0i + |1i) / 2 encodes H ⊗n |sk,n sk,n−1 . . . sk,1 i (|0i + |1i) / 2 as
+                                                                                             ⊗n
+the superposition of two eigenvectors of UΦ          ~ , i.e., |Ek,1 i and |Ek,2 i, with H        |sk,n sk,n−1 . . . sk,1 i (|0i +
+       √                      P2                                        ⊗n
+                                                                                                                             
+|1i) / 2 being equal to l=1 dk,l |Ek,l i where |Ek,1 i ≡ H                 |sk,n sk,n−1 . . . sk,1 i αk,0 |0i + αk,1 |1i and
+|Ek,2 i ≡ H ⊗n |sk,n sk,n−1 . . . sk,1 i βk,0 |0i + βk,1 |1i . In the proposed QST algorithm, the state |Ψi =
+PK          ı ϑk
+   k=1 ck e       |sk,n sk,n−1 . . . sk,1 i is the input as the superposition of the computational basis states while
+the ancillary qubit encodes each computational basis state |sk,n sk,n−1 . . . sk,1 i as superpositions of different
+pairs of eigenvectors. After the phase estimation, the first register with e           t qubits is measured. Then, n-qubit
+Hadamard transformation is applied to the second register except the ancillary qubit. The state collapses
+                                                                                                                                
+to either |λg                                                             g
+              k,1 i |sk,n sk,n−1 . . . sk,1 i αk,0 |0i + αk,1 |1i or |λk,2 i |sk,n sk,n−1 . . . sk,1 i βk,0 |0i + βk,1 |1i .
+
+
+
+
+algorithm with input |Ψe i is exploited to estimate the eigenvalues eı λk,1 and eı λk,2 corresponding
+to each pair of |Ek,1 i and |Ek,2 i resulting in the following state:
+                                      K
+                                      X                                                              
+                           |Ψo i ≡          ck eı ϑk dk,1 |λg                     g
+                                                            k,1 i |Ek,1 i + dk,2 |λk,2 i |Ek,2 i                              (8)
+                                      k=1
+
+where |λg               g
+           k,1 i and |λk,2 i are t-bit approximations to the exact values of the phases of the           eigenval-
+                                                                         e
+ues which can be realized with a quantum circuit including t ≈ t + log 2 + 1 / (2 ǫ) ancillary
+qubits in the first register as shown in Fig. 1 with success probability of at least (1 − ǫ) [30].
+On the other hand, measurement of |Ψo i collapses the state to |λ               g k,l i |Ek,l i for l ∈ [1, 2] with
+                     2       2        2                               2      2
+probabilities |ck | |dk,1 | = |ck | (1/2 + ak,0 ak,1 ) and |ck | |dk,2 | = |ck |2 (1/2 − ak,0 ak,1 ). Ap-
+plying the n-qubit Hadamard transform to the second register of the resulting state, i.e., |Ek,li
+for l ∈ [1, 2], except the ancillary qubit results       in either |sk,n sk,n−1 . . . sk,1 i αk,0 |0i + αk,1 |1i
+or |sk,n sk,n−1 . . . sk,1 i βk,0 |0i + βk,1 |1i in the second register. Then, measuring the unknown
+qubits gives the values of sk,j for j ∈ [1, n]. Another important assumption is that all the eigenval-
+ues of UΦ ~ are different so that there will be one-to-one mapping between each |sk,n sk,n−1 . . . sk,1 i
+and the specific eigenvalues |λg                g
+                                     k,1 i and |λk,2 i so that the measurement restores the corresponding
+|sk,n sk,n−1 . . . sk,1 i. In order to estimate all values for k ∈ [1, K], we apply standard phase estima-
+tion algorithm shown in Fig. 1 as much as O(1 / m) times with the designed operator UΦ                     ~ where
+m is chosen as follows:
+                                                                 1             1             
+ m = min max{|ck |2 |dk,1 |2 , |ck |2 |dk,2 |2 } = min |ck |2 max{   + ak,0 ak,1 ,   − ak,0 ak,1 }
+      k                                             k              2               2
+                                                                                                                 7
+
+
+for detecting one of the pairs of eigenvalues for each |sk,n sk,n−1 . . . sk,1   i where the one with higher 
+|dk,l |2 has higher probability for l ∈ [1, 2]. Since 1 / 2 + ak,0 ak,1 and 1 / 2 − ak,0 ak,1 are
+varying in opposite directions as the multiplication ak,0 ak,1 varies, it creates a balanced effect on
+the number of measurements           practically independent
+                                                              from the number of qubits. In other words,
+max{ 1 / 2 + ak,0 ak,1 , 1 / 2 − ak,0 ak,1 } is larger than 1 / 2. Therefore, the number of phase
+estimation steps is O(2 / mink∈[1,K]{|ck |2 }) independent from the number of data qubits while
+depending on the probability |ck |2 of the least probable state in the superposition for k ∈ [1, K].
+    Then, detected unknown basis states and the phases of eigenvalues are paired as the list
+{λgk,l , |sk,n sk,n−1 . . . sk,1 i} by choosing the first detected l ∈ [1, 2] for |sk,n sk,n−1 . . . sk,1 i. There-
+fore, the first phase of the algorithm is completed with estimation of K and |sk,n sk,n−1 . . . sk,1 i
+for k ∈ [1, K]. Therefore, by combining the unique eigenvector structure of UΦ             ~ with the power of
+phase estimation, we can easily estimate the number of superposition components and unknown
+basis states |sk,n sk,n−1 . . . sk,1 i with quantum polynomial-time resources.
+                                                                                                                  j
+    On the other hand, observe that phase estimation algorithm uses black-boxes, i.e., controlled-U ~2
+                                                                                                                 Φ
+for j ∈ [0, e t − 1], so that we assume that there is a polynomial size quantum circuit implementing
+the exponentially large powers of controlled-UΦ         ~ operations. This is an important open issue for
+practical implementation and for clarifying theoretical bounds of the complexity for reconstructing
+K-sparse pure states by exploiting quantum computation, i.e., phase estimation.
+    In the second phase of the algorithm, ck eı ϕk is estimated for k ∈ [1, K]. Since each state
+|sk,n sk,n−1 . . . sk,1 i is known, projection of |Ψi onto Pk ≡ |0k i h0k | and Pk⊥ ≡ I − Pk ≡ |1k i h1k |
+converts the problem to QST for pure states of log(K) qubits where Pk is defined as follows:
+
+                               Pk ≡ |sk,n sk,n−1 . . . sk,1 i hsk,1 . . . sk,n−1 sk,n |                        (9)
+
+The existing quantum CS methods in [4, 5] can be utilized for O(K (logK)c ) measurement settings
+for c ∈ [2, 6] by estimating ck eı ϕk for k ∈ [1, K] with high accuracy and low error probability. In
+fact, as shown in [4], O(d K (logK)c ) measurement settings reduce the error exponentially with
+some parameter d by using certified tomography for pure states.
+    As a result, the state is fully reconstructed after O(2 / mink∈[1,K]{|ck |2 }) repetitions of con-
+ventional t-bit quantum phase estimation algorithm to estimate K and |sk,n sk,n−1 . . . sk,1 i for
+k ∈ [1, K], and then O(d K (logK)c ) measurement settings with constant c and d for quantum CS
+to estimate ck eı ϕk for k ∈ [1, K]. This completes the proof.
+
+   Next, the design of the optical set-up composed of linear optical elements and WPDs, and its
+quantum circuit implementation are provided having the unique and favorable eigenstructure.
+
+
+        III.   DESIGN OF LINEAR OPTICAL SET-UP REALIZING THE UNITARY
+                                  OPERATOR UΦ~
+
+
+    A novel linear optical set-up motivated for tracking the path of a single photon through con-
+secutive BSs and phase shifters by using consecutive WPDs surprisingly provides an interesting
+relation among the eigenvectors. WPDs are utilized to track the history of a single photon state
+in various optical architectures for exploring quantum mechanical fundamentals [9]. Multi-WPD
+implementation is shown in Fig. 2 motivating the designed set-up in this article. Single photon
+diffraction paths are tracked with the help of WPDs. The analogical linear optical circuit and its
+combination with WPDs are realized by replacing planes with BSs, path length differences with
+phase shifters and the effects of WPDs with CNOT gates as shown in Fig. 3(a). Quantum circuit
+modeling for symmetric BSs is shown in Fig. 3(b) as described in the next section.
+                                                                                                             8
+
+
+
+
+FIG. 2. Multi-plane evolution of diffracting single photon tracked with WPDs motivating the designed linear
+optical set-up.
+
+
+
+
+FIG. 3. (a) Linear optical set-up and WPDs for realizing the targeted unitary operator UΦ    ~ where the set-up
+includes consecutive n + 1 BSs, phase shifters and WPDs tracking the paths of the single photon input. |Dk i
+for k ∈ [1, n] shows the initial states of WPDs while unitary gates Uk,0 or Uk,1 are applied on |Dk i depending
+on the path selected by the photon. (b) Quantum circuit implementation of the set-up for symmetric BSs.
+|Qi shows the initial state of the single photon. The proposed quantum circuit realizes a unitary operator
+denoted with UΦ  ~.
+
+
+
+
+    The paths obtained with consecutive symmetric BSs and corresponding phase shifters result in
+a linear optical set-up where the single photon is tracked by using consecutive WPDs with Hilbert
+space size of the circuit being 2n+1 . It is shown in Appendix A that the final states of WPDs
+and the single photon for any initial basis state of WPDs are classically simulable. The final
+states are also derived in Appendix A. Defining the final state of kth WPD as |dj ik ≡ Uk,j |Dk i
+                                                                                                        9
+
+
+                                                              Q combined state of the photon and
+for j ∈ [0, 1], the final state of the photon as |jn+1 in+1 , the
+WPDs as |ji ≡ |jn+1 in+1 |djn in . . . |dj1 i1 and A(j) ≡ Kj1 nk=1 χk+1,jk ,jk+1 with decimal value of
+                P
+j ≡ jn+1 2n + nk=1 djk 2k−1 allows to simplify |Ψn+1 i as
+
+                                 2n+1
+                                   X−1                  X−1 
+                                                      2n+1            n
+                                                                      Y                
+                     |Ψn+1 i =           A(j) |ji =             Kj1         χk+1,jk ,jk+1 |ji        (10)
+                                  j=0                  j=0            k=1
+
+
+where the parameters Kj1 and χk+1,jk ,jk+1 composing A(j) are defined in Appendix A. It is observed
+that the final state is an entangled state due to the non-separable structure of A(j). The factor
+A(j) chains neighbour WPD states |djk ik and |djk+1 ik+1 with the factor χk+1,jk ,jk+1 depending on
+both the paths experienced by the photon propagating through each WPD. On the other hand,
+each A(j) is classically calculated with O(n) complex calculations for any |ji.
+    Next, quantum circuit implementation of the proposed optical design is provided for simulating
+in recent quantum computers or NISQ devices. Quantum circuit implementation provides an easier
+analytical framework to explore the proposed algorithms.
+
+
+ IV.    QUANTUM CIRCUIT IMPLEMENTATION OF THE UNITARY OPERATOR UΦ
+                                                                ~
+            AND COMPLEX HADAMARD MATRIX REPRESENTATION
+
+    The optical set-up composed of multi-WPDs can be formulated and simulated with quantum
+circuits by modeling BSs with rotation gates [31]. First of all, BS operator is simplified to create
+equal propagation probability through the paths         θk = π / 4 for k ∈ [1, n + 1] resulting in the
+                                                   with
+                                               1 1 ı
+path splitting operation of RX (−π/2) ≡ √                . It is equal to the rotation of −π / 2 around
+                                                2 ı 1
+X-axis in Bloch-sphere. It is more comparable to BS operation as compared with a Hadamard gate.
+Secondly, the phase shift in the upper path of each BS is set to zero with φk,0 = 0 for k ∈ [1, n + 1]
+since the difference between the phase shifts between upper and lower paths can be reflected as
+a global phase shift on the final quantum state. It results in the phase shift operators defined as
+         1 0
+Φk ≡              for k ∈ [1, n + 1]. Thirdly, the unitary operator on the upper path is chosen as
+         0 eı φk
+                                                                                                 
+                            1 0                                                                 0 1
+Identity operator I ≡             while the lower path is set to the Pauli-X operator X ≡             . In
+                            0 1                                                                 1 0
+other words, as the photon passes through the WPD, it applies a CNOT gate to the current state
+of the WPD. For example, if the initial state of the kth WPD is denoted as |Dk i = |0ik and the
+photon state after the kth BS is equal to α |0i + β |1i, then the entangled state of WPD and
+photon becomes α |0i |0ik + β |1i |1ik . If the initial state of the kth WPD is |1ik , then it produces
+α |0i |1ik + β |1i |0ik . Finally, we does not constrain the initial state of the photon as |0i but a
+complex superposition of |0i and |1i, i.e., α0 |0i + α1 |1i, is possible.
+    The quantum circuit implementation of the linear optical set-up is shown in Fig. 3(b). It results
+in the unitary operator denoted with UΦ     ~ in the family of complex Hadamard matrices which are
+composed of unit magnitude entries with arbitrary phases [32]. These matrices are important
+for quantum information theory and computing with the famous example of quantum Fourier
+transform (QFT). In this article, a novel method is proposed to realize a specific form of complex
+Hadamard matrices. The formation process is analyzed by calculating the elements of UΦ          ~ for the
+circuit composed of phase shift gates of Φ  ~ ≡ [φ1 φ2 . . . φn+1 ]. Assume that the computational basis
+state for the measured photon state is denoted with |en+1 i where en+1 denotes 0 or 1 and similarly
+with |dk i (removing the symbol k under the ket for simplicity) where dk denotes kth detector state
+                                                                                                                  10
+
+
+
+
+                                         ~ (k, l) ≡ he1 | he2 | . . . hen+1 | UΦ
+FIG. 4. Iterative approach to calculate UΦ                                     ~ |Qi |Dn i . . . |D1 i resulting in a
+special form of complex Hadamard matrix representation.
+
+
+                               ~ denoted with UΦ
+output. Then, the elements of UΦ               ~ (k, l) are calculated as follows:
+
+                              ~ (k, l) ≡ he1 | he2 | . . . hen+1 | UΦ
+                             UΦ                                     ~ |Qi |Dn i . . . |D1 i                     (11)
+                                       ≡ he1 | he2 | . . . hen+1 |Ψn+1 i                                        (12)
+
+                                                  P for the
+where |Qi |Dn i . . . |D1 i denotes the initial state           photon with |Qi and Pnkth WPD       with |Dk i
+in the computational basis states while k = n+1       j=1 ej 2j−1 and l = Q 2n +
+                                                                                      j=1 D j 2j−1 .
+
+    Tracing the quantum state, UΦ    ~ (k, l) is calculated in classical polynomial-time in an iterative
+manner as described next and as shown in Fig. 4. At each time step, it is assumed that the
+normalized unit amplitude of the photon basis state |0i entangled with WPD states is denoted
+as a0 + ı b0 while the one for |1i is denoted with a1 + ı b1 . Before passing to the next step, the
+information about the measured state |ej i allows us to choose either |Dj i or |Dj i for j ∈ [1, n]
+to continue with in the calculation of UΦ      ~ (k, l). This operation at the same time measures the
+photon state to either |0i or |1i due to entanglement with the jth WPD state. Therefore, at each
+time step, we are left with the photon state being either |0i or |1i with the amplitudes (a0 + ı b0 )
+and (a1 + ı b1 ). We need to track only these amplitudes depending on the pairs Dj and ej for
+jth WPD state. An iterative approach allows to obtain UΦ           ~ (k,l) with the algorithmic evaluation
+                                                    
+                                                      cos(α) − sin(α)
+framework shown in Fig. 4 where R(α) ≡                                     denotes rotation in the counter-
+                                                      sin(α) cos(α)
+clockwise direction of a two dimensional vector composed of the realand imaginary components of
+                                                                               a
+complex amplitude of some number z, i.e., z = a0 + ı b0 and R(α) 0 . After the final (n + 1)th
+                                                                               b0
+step, there are two possible amplitudes for the photon state which is chosen depending on |en+1 i.
+    For example, at time t1 , |Ψ1 i is as follows where we reorder the position of |Qi to emphasize
+the entanglement with the first WPD state depending on the path:
+                                                                                               
+                       1
+           |Ψ1 i = 1/2 |Dn . . . D3 D2 i ⊗ (a0 + ı b0 ) |0i |D1 i + (a1 + ı b1 ) |1i |D1 i                (13)
+                     2
+and the the following is obtained based on the first pair of e1 and D1 values:
+                                                                                                 
+                   1
+      he1 |Ψ1 i = 1/2 |Dn . . . D3 D2 i ⊗ (a0 + ı b0 ) |0i he1 |D1 i + (a1 + ı b1 ) |1i he1 |D1 i   (14)
+                 2
+
+where D1 denotes the NOT of D1 while (a0 + ı b0 ) and (a1 + ı b1 ) are calculated by RX (−π/2) |Qi
+and consecutive phase shift φ1 depending on the value of Q and e1 . Therefore, if e1 = D1 , the
+amplitude passed on to the next step is (a0 + ı b0 ) with |0i while if e1 = D1 , the amplitude passed√    on
+to the next step is (a1 + ı b1 ) with |1i. In fact, RX (−π / 2) transforms |0i into (|0i + eı π / 2 |1i) / 2
+                                                                                                    11
+
+                                     √
+and |1i into (eı π / 2 |0i + |1i) / 2 where the effect of complex ı is modeled as π / 2 rotation in
+the counter-clockwise direction on the complex amplitudes of |0i or |1i, i.e., R(π / 2). Therefore,
+if initially Q = 0, i.e., a0 = 1 and b0 = 0, and e1 = D1 , then R(0) or no change is applied
+on the state resulting in a0 = 1, b0 = 0, a1 = 0, b1 = 0. If initially Q = 0 and e1 = D1 ,
+then both the phase factors eı π / 2 and eı φ1 will multiply |1i, and the result becomes a1 + ı b1 =
+R(φ1 + π / 2) (a0 + ı b0 ) where a0 = 1 and b0 = 0. Similarly, iterative approach allows to track
+the phases of |0i and |1i until to (n + 1)th step. In this step, R(0) and R(φn+1 + π/ 2) are applied
+on (a0 + ı b0 ) coming from the previous step in order to calculate the amplitudes of |0i and |1i for
+the final step, i.e., (a0 + ı b0 ) and (a1 + ı b1 ), respectively. Similarly, R(π / 2) and R(φn+1 ) are
+applied on (a1 + ı b1 ) coming from the previous step to calculate the amplitudes of |0i and |1i.
+    The iterative approach provides a classical polynomial-time complexity formulation for the
+calculation of UΦ ~ (k, l) as follows:
+                                                           Y
+                                                            n            
+                                               1
+                             ~ (k, l) =
+                            UΦ                    ~uT
+                                           (n+1)/2 en+1
+                                                                 Mj,Dj ,ej ~vQ                    (15)
+                                          2                j=1
+        Q
+where nj=1 Aj denotes the matrix product An An−1 . . . A1 from the right to the left (with the
+                                                P                            Pn
+same notation in the following discussions), k = n+1
+                                                  j=1 ej 2
+                                                          j−1 and l = Q 2n +
+                                                                              j=1 Dj 2
+                                                                                      j−1 , and
+
+the following are defined:
+                h         iT                                 h        iT
+                
+                 1 0 0 0 , if l = 0                          
+                                                               1 ı 0 0 , if l = 0
+           ~vl = h         iT            ;              ~ul = h         iT                  (16)
+                
+                 0 0 1 0 , if l = 1                          
+                                                               0 0 1 ı , if l = 1
+
+                                        "           #
+                                        
+                                          I2 R( π2 )
+                                        
+                                                      ,             if ej = Dj
+                                        
+                                         02 02
+                                        
+                          Mj,Dj ,ej =                                                             (17)
+                                        
+                                         "                      #
+                                        
+                                                02       02
+                                        
+                                                               , if ej = Dj
+                                                    π
+                                              R(φj + 2 ) R(φj )
+
+where Mj,Dj ,ej for j ∈ [1, n − 1] is 4 × 4 block diagonal matrix composed of the rotation matrix
+                                                       
+         cos(α) − sin(α)             1 0               0 0
+R(α) ≡                      , I2 ≡         and 02 ≡           and Mn,Dn ,en is defined as follows:
+         sin(α) cos(α)               0 1               0 0
+                              "                    #"              #
+                                                                 π
+                              
+                                      I 2       02     I 2  R(  2 )
+                              
+                                                                     ,      if en = Dn
+                              
+                                R(φ       + π
+                                               ) 0      0     0
+                                     n+1    2    2       2      2
+                Mn,Dn ,en =                                                                        (18)
+                              
+                               "               #"                       #
+                              
+                                02 R( 2 ) π
+                                                        02            02
+                              
+                                                                          , if en = D n
+                                                              π
+                                  02 R(φn+1 )      R(φn + 2 ) R(φn )
+
+   As a result, unit magnitude output amplitude for any input and output basis states is easily
+calculated with O(n) multiplications of complex 4 × 4 matrices.
+
+
+        V.   EIGENSTRUCTURE OF THE DESIGNED UNITARY OPERATOR UΦ
+                                                              ~
+
+
+   We order the input qubits in the reverse manner with respect to the ordering of WPDs, i.e.,
+the bottom qubit which is the photon input state to BS is denoted with |j0 i ≡ |Qi, the initial
+                                                                                                                     12
+
+
+
+
+                                                                                            ~.
+          FIG. 5. Indexing of inputs and outputs for the quantum circuit implementation of UΦ
+
+
+state of the nth WPD as |j1 i ≡ |Dn i, and similarly for |jn+1−l i ≡ |Dl i for l ∈ [1, n]. The proposed
+re-ordering of the qubits is shown in Fig. 5. The same ordering of qubits should be kept in the
+output with output qubit numbers starting from |k0 i ≡ |en+1 i for the photon output state and
+|kn+1−l i ≡ |el i for l ∈ [1, n]. Therefore, the elements of the unitary operator in this new re-ordered
+qubit basis states are calculated as follows:
+                                                                      Yn                   
+                                                                ~uTk0
+           hk | UΦ                         ~ |jn . . . j0 i = (n+1)/2
+                  ~ | ji ≡ hk0 . . . kn | UΦ                               Ml,jn+1−l ,kn+1−l ~vj0   (19)
+                                                              2        l=1
+           P                 P
+where k = nl=0 kl 2l and j = nl=0 jl 2l . Next, the analysis and supporting evidence of Conjecture-
+1 are presented by showing the favorable form of the eigenvectors.
+
+
+                        A.    Analysis and Supporting Evidence of Conjecture-1
+
+                         ~ is a state |Eim,~s,~
+   Assume that input to UΦ                    α defined as follows:
+
+                   M
+                 T X
+                 X
+  |Eim,~s,~α ≡             Bj |j + b 2m i                                                                           (20)
+                 b=0 j=0
+                   ⊗n
+             ≡ H   |0 . . . 0 sm−1 sm−2 . . . s1 i (α0 |0i + α1 |1i)                                                (21)
+                           X                             X            P                            X 1
+                 1                                                 ı π m−1 j l sl
+             = √                      |bn−m . . . b0 i            e    l=1        |jm−1 . . . j1 i      αj0 |j0 i   (22)
+               ( 2)n b       , ..., b                  j , ..., j                                  j =0
+                           n−m      0                  m−1      1                                  0
+
+
+ where the state is a separable (not entangled) state with some periodic amplitude Bj of period 2m ,
+ ~ ≡ [α
+ α         α1 ]T , sl beingP
+       P0n−m                 either 0 or 1 for l ∈ [1, m − 2], sm−1 = 1, M ≡ 2m − 1, T ≡ 2n − m + 1 − 1,
+ b ≡ l=0 bl 2 , j ≡ m−1
+                    l                  l
+                              l=0 jl 2 and (α0 |0i + α1 |1i) is the initial state of the photon. We denote
+~s ≡ [s1 . . . sm−1 ] as the vector of the input state. The value sm−1 = 1 is chosen in order to
+ realize periodicity of the amplitudes Bj of the basis states with 2m since the value of sm−1 = 0
+ will increase the number of bits in |bn−m . . . b0 i by one while reducing the periodicity to 2m−1 .
+ Therefore, there are 2m−2 possible ~s vectors with varying binary values of sl for l ∈ [1, m − 2]. In
+ fact, the eigenvector amplitudes are discrete periodic vectors having periodicity 2m for m ∈ [1, n+1]
+ by also including the periodicity of 2 for all zero input vector.
+      We target to calculate hk + t 2m |UΦ             α i for k ∈ [0, M ] and t ∈ [0, T ] by using (19). Firstly,
+                                              ~ |Em,~s,~
+ if |ji ≡ |j + b 2m i is defined, then it is easy to observe that j l = jl for l ∈ [0, m−1] and j l = bl−m for
+ l ∈ [m, n] as shown in (20-22). Similarly, if |ki ≡ |k + t 2m i is defined, then kl = kl for l ∈ [0, m − 1]
+ and kl = tl−m for l ∈ [m, n]. Then, the following is obtained by using (19-22):
+                                                   m−1
+                                                    Y                      
+                                           ~uTk0                                                      
+                      m
+             hk + t 2 | UΦ          αi ≡ n √
+                           ~ |Em,~s,~
+                                                          f
+                                                          Mm−l,sm−l ,km−l Kn−m+1 α0 ~v0 + α1 ~v1             (23)
+                                         2       2 l=1
+                                                                                                          13
+
+
+where the product matrix Ka becoming independent of t is defined as follows:
+                              1
+                              X             1
+                                            X
+                       Ka ≡        ...      Ma,b0 ,t0 . . . M2,ba−2 ,ta−2 M1,ba−1 ,ta−1                 (24)
+                             b0 =0  ba−1 =0
+                             Ya                                       
+                                   I2 R( π2 )              02         02
+                           =                  +                                                         (25)
+                                   02 02            R(φl + π2 ) R(φl )
+                             l=1
+
+                          c a,s and M
+    f a,s ,k ≡ eı π ka sa M
+and M                               c a,s ≡ Mn−a+1,0,0 + eı π sa Mn−a+1,1,0 . Then, the resulting
+          a a                  a         a
+simplified expression is obtained:
+
+                                                         Pm−1             1
+                                                                          X                     
+                       hk + t 2m | UΦ        αi = e
+                                    ~ |Em,~s,~
+                                                   ıπ      l=1   kl s l
+                                                                                  ̺j0 ,k0 αj0           (26)
+                                                                          j0 =0
+                                    √                               Qm−1 c           
+where ̺j0 ,k0 ≡ ~uTk0 V~s ~vj0 / (2n 2) for j0 = 0 or 1 and V~s ≡     l=1 Mm−l,sm−l Kn−m+1 . Observe
+that V~s is easily calculated with O(n) multiplications of complex 4 × 4 matrices where the matrices
+depend on Φ, ~ i.e., the phase shift values in each step.
+   If there exists a solution (depending on the provided    P1 values φk for k ∈ ı[1, n + 1]) for  √ α0n, α1
+and the eigenvalue eı λm,~s,~α by solving the equation        j0 =0 ̺j  ,k
+                                                                       0 0 αj 0 = e λm,~s,~
+                                                                                          α α
+                                                                                             k 0 / ( 2) for
+k0 = 0 and 1 simultaneously, then by using (22) and (26) it is observed that |Eim,~s,~α becomes an
+eigenvector of UΦ  ~ as follows:
+
+                                                     ı λm,~s,~
+                                       ~ |Eim,~s,~
+                                      UΦ         α =e
+                                                             α |Ei
+                                                                   m,~s,~
+                                                                        α                               (27)
+
+where the eigenvalue is equal to the following:
+                                            ̺0,0 α0 + ̺1,0 α1   ̺0,1 α0 + ̺1,1 α1
+                            eı λm,~s,~α =            √        =          √                              (28)
+                                               α0 / ( 2)n          α1 / ( 2)n
+    We can constrain α0 and α1 further by setting one of them as real, e.g., similar to the
+Bloch sphere representation by omitting a global phase, i.e., α0 |0i + α1 |1i ≡ cos(ϕ / 2) |0i +
+eı γ sin(ϕ / 2) |0i. Assume that α0 = a0 + ı b0 and α1 = a1 + ı b1 where either b0 or b1 equal to zero.
+Another constraint is that the eigenvector in (22) should be normalized so that |α0 |2 + |α1 |2 = 1.
+    Then, the four unknowns, i.e., a0 , b0 , a1 and b1 can be solved with the four  P1 polynomial equalities
+                                                                                                   
+with one of them having complex coefficients. The first equality is due to | j0 =0 ̺j0 ,k0 αj0 |2 being
+equal to |αk0 |2 / 2n for k0 = 0 or 1:
+                                                           
+                      |̺0,k0 (a0 + ı b0 ) + ̺1,k0 a1 + ı b1 |2 = (a2k0 + b2k0 ) / 2n                   (29)
+
+The second equality is due to the expanded form of (28) by excluding the eigenvalue as follows:
+                                                                                                  
+(a1 + ı b1 ) (a0 + ı b0 )̺0,0 + (a1 + ı b1 )̺1,0 − (a0 + ı b0 ) (a0 + ı b0 )̺0,1 + (a1 + ı b1 )̺1,1 = 0 (30)
+
+Finally, the third and fourth equalities are as follows:
+
+                                            a20 + b20 + a21 + b21 = 1                                   (31)
+                                                           b0 b1 = 0                                    (32)
+
+   It can be observed that if b1 = 0, and (α0 = a0 + ı b0 , α1 = a1 ) is a solution to the equations,
+then (α0 = a1 , α1 = −a0 + ı b0 ) (or its multiplication with some phase) becomes also a solution by
+creating a duality for the single photon state for the same ~s. The trigonometric proof is provided
+in Appendix B with some minor open issues.
+                                                                                                   14
+
+
+   Observe that V~s includes multiplications of 4 × 4 matrices composed of 2 × 2 block matrices
+applying rotations depending on φk for k ∈ [1, n + 1]. It is an open issue to determine the
+conditions on φk for k ∈ [1, n + 1] under which there exist solutions satisfying four equalities (29-
+32) and the duality condition with all different eigenvalues so that the conditions and assumptions
+in Theorem-1 and consecutively Conjecture-1 are satisfied. In fact, it can be hypothesized that
+uniformly distributed values of phase shifts result in different eigenvalues satisfying the proposed
+assumptions based on extensive numerical analysis.
+
+
+                                    VI.   OPEN PROBLEMS
+
+    • The existence of the specific eigenstructure form of UΦ ~ definitely depends on the chosen phase
+      shift values φk for k ∈ [1, n + 1]. It is an open issue under which conditions it provides such
+      a favorable eigenstructure to be utilized in Theorem-1. In numerical analysis, it is observed
+      that uniformly distributed random values of φk for k ∈ [1, n + 1] produce such operators UΦ    ~
+      having the desired structure by providing numerical evidence.
+
+    • Quantum polynomial-time complexity solution in Theorem-1 depends on the existence of
+                                                   j
+      black-boxes or oracles, i.e., controlled-U ~2 operations for j ∈ [0, e
+                                                                           t − 1]. We have provided a
+                                                Φ
+      design of UΦ~ based on linear optics and WPDs while also providing polynomial size quantum
+      circuit implementation. It is an open issue how to implement exponentially large powers of
+      the designed UΦ ~ with polynomial size quantum circuits. Is there any specific set of phase
+      shift values φk for k ∈ [1, n + 1] so that both Conjecture-1 is satisfied and polynomial size
+      quantum circuits exist for implementing UΦ     2j
+                                                     ~ based on the proposed linear optical design?
+
+
+                                              ~ having the desired eigenstructure so that its expo-
+    • Is there any other practical design of UΦ
+      nentially large powers can be implemented with polynomial size quantum circuits?
+
+    • What are the effects of noise in input state and how are the estimation errors modeled?
+
+    • How can the proposed unitary operator design be exploited in QST of mixed state inputs?
+
+    • The designed operator UΦ ~ has eigenvalues and eigenvectors to be calculated easily by using
+      multiplications of matrix factorizations as shown in Section V. It is conjectured as a one-way
+      function promising to be utilized in various cryptographic algorithms as an open issue.
+
+
+                                    ACKNOWLEDGMENTS
+
+  This work was supported by TUBITAK (The Scientific and Technical Research Council of
+Turkey) under Grant #119E584.
+
+
+ Appendix A: Evolution of single photon state in linear optical set-up with multiple WPDs
+
+   We assume that BSk in Fig. 3(a) applies the following operator:
+                                                              
+                                            cos(θk ) ı sin(θk )
+                                   UBS,k =                                                       (A1)
+                                           ı sin(θk ) cos(θk )
+                                                                                                                       15
+
+
+The standard phase shift operator shifts the phase of the photon in the path with the following for
+the chosen path index j = 0 or 1:
+                                                           
+                                                  1 0
+                                        Φk,j ≡                                                (A2)
+                                                  0 eı φk,j
+    WPD with the index k applies either Uk,0 or Uk,1 depending on the selected path of the photon
+passing through BS. Although there is no constraint on the unitaries and the dimension of Hilbert
+space in WPDs, we assume that each WPD state is two dimensional with the corresponding single
+qubit unitary gates Uk,0 and Uk,1 . We assume that the initial states in WPDs at time t0 are pure
+states represented by |Dn i ⊗ |Dn−1 i . . . ⊗ |D1 i in order to better observe the evolution of each
+path through consecutive WPDs. At time ti the state is denoted as |Ψi i. Then at time t0 , the
+initial state is as follows:
+                                      |Ψ0 i = |Qi ⊗ |Dn i ⊗ |Dn−1 i . . . ⊗ |D1 i                                   (A3)
+where |Qi = α0 |0i + α1 |1i denotes the initial state of the single photon. Assume that |Qi =
+|0i to analyze the evolution of the WPD states more simply. In the following, we remove the
+tensor product ⊗ in order to simplify the expressions which can be understood from the context.
+Furthermore, we reorder the positions of the WPD states for the following modeling in order to
+better characterize the evolution since the interaction of WPDs starts with the first WPD. At the
+end, we correct again.
+   After the first beam splitter BS1 , the state is transformed into the following:
+                                     UBS,1 |0i |D1 i |D2 i . . . |Dn i                         (A4)
+                                                 
+The state becomes cos(θ1 ) |0i + ı sin(θ1 ) |1i |D1 D2 . . . Dn i. Then, unitary operator is applied
+on the first WPD state depending on the path chosen by the photon and the state becomes
+entangled with the photon path as follows:
+                                                                       
+                    cos(θ1 ) |0i U1,0 |D1 i + ı sin(θ1 ) |1i U1,1 |D1 i |D2 . . . Dn i         (A5)
+Finally, phase shift operator Φ1,j is applied depending on the path resulting in |Ψ1 i as a superpo-
+sition of two paths entangling the photon and the first WPD state:
+                                                                                      
+           |Ψ1 i = cos(θ1 ) eı φ1,0 |0i U1,0 |D1 i + ı sin(θ1 ) eı φ1,1 |1i U1,1 |D1 i |D2 . . . Dn i (A6)
+Defining eck,j ≡ cos(θk ) eı φk,j , sek,j ≡ ı sin(θ
+                                                 k) e
+                                                           ı φk,j and |d i ≡ U
+                                                                        j k        k,j |Dk i simplifies the expression
+as |Ψ1 i = e  c1,0 |0i |d0 i1 + se1,1 |1i |d1 i1 |D2 . . . Dn i. Similarly, the entanglement of the photon
+with the next WPD detector results in |Ψ2 i consisting of the superposition of four paths:
+                                                                                                                         
+    |Ψ2 i = |0i (e     c1,0 |d0 i1 + se2,0 se1,1 |d1 i1 ) |d0 i2 + |1i (e
+                  c2,0 e                                                c1,0 se2,1 |d0 i1 + e c2,1 se1,1 |d1 i1 ) |d1 i2
+             |D3 . . . Dn i                                                                                         (A7)
+It can be simply iterated until the (n + 1)th step to compute |Ψn+1 i as follows after reordering the
+positions of the WPD states:
+                1
+                X 1
+                  X                 1
+                                    X      1
+                                           X
+                              ...                   A(j1 , . . . , jn , jn+1 ) |jn+1 in+1 |djn in . . . |dj1 i1     (A8)
+                j1 =0 j2 =0         jn =0 jn+1 =0
+
+where we denote the final state of the photon as |jn+1 in+1 and A(j1 , . . . , jn , jn+1 ) is defined as
+follows:
+                                                         n
+                                                         Y
+                             A(j1 , . . . , jn+1 ) ≡ Kj1   χk+1,jk ,jk+1                            (A9)
+                                                                       k=1
+                                                                                                    16
+
+
+where the following amplitudes are defined:
+                                        
+                                        
+                                         e
+                                          ck+1,jk+1 , if jk = 0, jk+1 = 0
+                                        
+                                        
+                                        se
+                                            k+1,jk+1 , if jk = 1, jk+1 = 0
+                        χk+1,jk ,jk+1 =                                                         (A10)
+                                        
+                                         sek+1,jk+1 , if jk = 0, jk+1 = 1
+                                        
+                                        
+                                        eck+1,jk+1 , if jk = 1, jk+1 = 1
+                                        (
+                                         e
+                                         c1,0 , if j1 = 0
+                                 Kj1 =                                                          (A11)
+                                         se1,1 , if j1 = 1
+
+
+                 Appendix B: Duality of the solution for ancillary qubit state
+
+   Assume that the following equalities are satisfied for some unknown ω, γ0,0 , γ0,1 and γ1,0 de-
+pending on φk for k ∈ [1, n + 1] for varying ~s as discussed in Conjecture-1 in Section V A:
+                                        √ 
+                           ̺0,0 = 1 / ( 2)n cos(ω) eı γ00                                    (B1)
+                                        √ n
+                           ̺1,0 = 1 / ( 2) sin(ω) eı γ10                                     (B2)
+                                        √ n            ı γ01
+                           ̺0,1 = 1 / ( 2) sin(ω) e                                          (B3)
+                                        √ n
+                           ̺1,1 = 1 / ( 2) cos(ω) eı (γ01 + γ10 − γ00 − π)                   (B4)
+where ̺j0 ,k0 are expressed for j0 , k0 ∈ [0, 1]. Furthermore, assume that the equalities (29-32) have
+a solution with b1 = 0, a0 = µ0 , b0 = µ1 and a1 = µ2 . Then, by inserting the solutions and using
+the assumptions in (B1-B4), the satisfied equalities in (29-32) are converted to the following:
+                                                                                          
+    E1 ≡ µ2 sin(2 ω) µ0 cos(γ00 − γ10 ) − µ1 sin(γ00 − γ10 ) − sin2 (ω) µ20 + µ21 − µ22            (B5)
+              2     2     2      2
+                                                                                           
+    E2 ≡ sin (ω) µ0 + µ1 − µ2 + µ2 sin(2 ω) µ1 sin(γ00 − γ10 ) − µ0 cos(γ00 − γ10 )                (B6)
+                                                                                            
+    E3 ≡ sin(ω) µ21 − µ20 cos(γ00 + γ01 ) + 2 µ0 µ1 sin(γ00 + γ01 ) + µ22 cos(γ00 + γ10 )
+                                                                                              
+          + µ2 cos(ω) µ0 cos(2 γ00 ) + cos(γ01 + γ10 ) − µ1 sin(2 γ00 ) + sin(γ01 + γ10 ) (B7)
+                                                                                            
+    E4 ≡ sin(ω) µ21 − µ20 sin(γ00 + γ01 ) − 2 µ0 µ1 cos(γ00 + γ01 ) + µ22 sin(γ00 + γ10 )
+                                                                                            
+          +µ2 cos(ω) µ0 sin(2 γ00 ) + sin(γ01 + γ10 ) + µ1 cos(2γ00 ) + cos(γ01 + γ10 )            (B8)
+   E5 ≡ µ20 + µ21 + µ22 − 1                                                                       (B9)
+where Ek = 0 for k ∈ [1, 5]. Similarly, if another solution, i.e., the dual solution, is b0 = 0,
+a0 = µ2 , b1 = µ1 and a1 = − µ0 , then (B1-B4) are converted to the following which should give
+Ek = 0 for k ∈ [6, 10]:
+    E6 ≡ − E1                                                                                   (B10)
+    E7 ≡ − E2                                                                               (B11)
+                                                                                        
+    E8 ≡ sin(ω) µ21 − µ20 cos(γ00 + γ10 ) − 2 µ0 µ1 sin(γ00 + γ10 ) + µ22 cos(γ00 + γ01 )
+                                                                                        
+         + µ2 cos(ω) µ0 (cos(2γ00 ) + cos(γ01 + γ10 )) + µ1 sin(2 γ00 ) + sin(γ01 + γ10 ) (B12)
+                                                                                        
+    E9 ≡ sin(ω) µ21 − µ20 sin(γ00 + γ10 ) + 2 µ0 µ1 cos(γ00 + γ10 ) + µ22 sin(γ00 + γ01 )
+                                                                                        
+         + µ2 cos(ω) µ0 (sin(2γ00 ) + sin(γ01 + γ10 )) − µ1 cos(2 γ00 ) + cos(γ01 + γ10 ) (B13)
+   E10 ≡ E5                                                                                     (B14)
+                                                                                                        17
+
+
+Therefore, for both the solutions to exist, Ek should be zero for k ∈ [1, 10]. Equating E1 , E2 and
+E3 to zero gives the following solutions for ω and µ0 :
+                                                                                        
+                  µ2 µ0 cos(2 γ00 ) + cos(γ01 + γ10 ) − µ1 sin(2 γ00 ) + sin(γ01 + γ10 ) 
+ ω = tan−1 −                                                                                  (B15)
+                    µ21 − µ20 cos(γ00 + γ01 ) + 2 µ0 µ1 sin(γ00 + γ01 ) + µ22 cos(γ00 + γ10 )
+                           
+                 γ01 − γ10
+µ0 = − µ1 cot                                                                                  (B16)
+                      2
+
+Substituting µ0 into Ek for k ∈ {3, 4, 8, 9} results in the following equalities:
+                                        E3                E8
+                                                  −                 =0                              (B17)
+                                 cos(γ00 + γ10 )    cos(γ00 + γ01 )
+                                        E4                E9
+                                                  −                 =0                              (B18)
+                                  sin(γ00 + γ10 )   sin(γ00 + γ01 )
+
+   If cos(γ00 + γ01 ), cos(γ00 + γ10 ), sin(γ00 + γ01 ) and sin(γ00 + γ10 ) are not equal to zero, then the
+equalities E3 = E4 = E8 = E9 = 0 are satisfied together. It is also easily seen that E1 + E2 = 0, and
+since E6 = − E1 , E7 = − E2 and E10 = E5 , the equalities E1 = E2 = E5 = E6 = E7 = E10 = 0
+are also satisfied together. Therefore, all the equalities are satisfied for being equal to zero with
+some conditions on γ00 , γ01 and γ10 which depend on φk for k ∈ [1, n + 1] for varying ~s.
+   We have utilized the assumptions about the forms of ̺k0 ,j0 in (B1-B4). In order to satisfy these
+equalities, Ek values should be equal to zero for k ∈ [11, 14] defined as follows:
+
+
+                                    E11 ≡ |̺0,0 |2 + |̺1,0 |2 − 1 / 2n                              (B19)
+                                                 2          2        n
+                                    E12 ≡ |̺0,0 | + |̺0,1 | − 1 / 2                                 (B20)
+                                                 2          2        n
+                                    E13 ≡ |̺0,1 | + |̺1,1 | − 1 / 2                                 (B21)
+                                    E14 ≡ ̺∗0,0 ̺1,0 + ̺∗0,1 ̺1,1                                   (B22)
+                                                                Qm−1 c                             √
+    Ek for k ∈ [11, 14] are calculated by using ̺j0 ,k0 ≡ ~uTk0  l=1 Mm−l,sm−l Kn−m+1 ~   vj0 / (2n 2)
+with the modeling in Section V A. If the most general case is chosen with m = n + 1, then ̺j0 ,k0
+                          Qn c                          √
+becomes equal to ~uTk0      l=1 Mn+1−l,sn+1−l ~ vj0 / (2n 2). One can perform the calculations with
+symbolic variables φk to check whether Ek = 0 for k ∈ [11, 14]. We have performed iterations of
+symbolic calculations until n < 7 for practical values of n to observe that Ek = 0 for k ∈ [11, 14].
+It is a minor open issue to show that the equalities are satisfied for all n by using trigonometry
+and by exploiting the rotation matrices in the definition of M   c k,s for a more rigorous proof.
+                                                                      k
+    As a result, there exist dual solutions depending on whether φk for k ∈ [1, n + 1] satisfies Ek = 0
+for k ∈ [1, 10] while γ00 + γ01 and γ00 + γ10 are not multiples of π / 2. It is an open issue to
+determine the class of φk for k ∈ [1, n + 1] providing the favorable solution and the eigenstructure.
+Uniformly distributed values of φk for k ∈ [1, n + 1] provide promising solutions in numerical
+analysis as a supporting numerical evidence.
+                                                                                                         18
+
+
+
+
+ [1] G. M. D’Ariano, M. G. Paris, and M. F. Sacchi, Quantum tomography, Advances in Imaging and
+     Electron Physics 128, 206 (2003).
+ [2] M. Cramer, M. B. Plenio, S. T. Flammia, R. Somma, D. Gross, S. D. Bartlett, O. Landon-Cardinal,
+     D. Poulin, and Y.-K. Liu, Efficient quantum state tomography, Nature Communications 1, 1 (2010).
+ [3] M. Christandl and R. Renner, Reliable quantum state tomography, Physical Review Letters 109, 120403
+     (2012).
+ [4] D. Gross, Y.-K. Liu, S. T. Flammia, S. Becker, and J. Eisert, Quantum state tomography via compressed
+     sensing, Physical Review Letters 105, 150401 (2010).
+ [5] A. Kyrillidis, A. Kalev, D. Park, S. Bhojanapalli, C. Caramanis, and S. Sanghavi, Provable compressed
+     sensing quantum state tomography via non-convex methods, npj Quantum Information 4, 1 (2018).
+ [6] S. T. Flammia, D. Gross, Y.-K. Liu, and J. Eisert, Quantum tomography via compressed sensing: Error
+     bounds, sample complexity and efficient estimators, New Journal of Physics 14, 095022 (2012).
+ [7] A. Steffens, C. Riofrı́o, W. McCutcheon, I. Roth, B. A. Bell, A. McMillan, M. Tame, J. Rarity, and
+     J. Eisert, Experimentally exploring compressed sensing quantum tomography, Quantum Science and
+     Technology 2, 025005 (2017).
+ [8] L. Banchi, W. S. Kolthammer, and M. Kim, Multiphoton tomography with linear optics and photon
+     counting, Physical Review Letters 121, 250402 (2018).
+ [9] B.-G. Englert, Fringe visibility and which-way information: An inequality, Physical Review Letters 77,
+     2154 (1996).
+[10] R. G. Baraniuk, Compressive sensing [lecture notes], IEEE Signal Processing Magazine 24, 118 (2007).
+[11] S. Aaronson, X. Chen, E. Hazan, S. Kale, and A. Nayak, Online learning of quantum states, Journal
+     of Statistical Mechanics: Theory and Experiment 2019, 124019 (2019).
+[12] S. Aaronson, Shadow tomography of quantum states, SIAM Journal on Computing 49, STOC18 (2019).
+[13] I. Roth, J. Wilkens, D. Hangleiter, and J. Eisert, Semi-device-dependent blind quantum tomography,
+     arXiv preprint arXiv:2006.03069 (2020).
+[14] J. Eisert, A. Flinth, B. Groß, I. Roth, and G. Wunder, Hierarchical compressed sensing, arXiv preprint
+     arXiv:2104.02721 (2021).
+[15] D. Ahn, Y. S. Teo, H. Jeong, F. Bouchard, F. Hufnagel, E. Karimi, D. Koutnỳ, J. Řeháček, Z. Hradil,
+     G. Leuchs, et al., Adaptive compressive tomography with no a priori information, Physical Review
+     Letters 122, 100404 (2019).
+[16] J. Cotler and F. Wilczek, Quantum overlapping tomography, Physical Review Letters 124, 100401
+     (2020).
+[17] T. Xin, D. Lu, J. Klassen, N. Yu, Z. Ji, J. Chen, X. Ma, G. Long, B. Zeng, and R. Laflamme, Quantum
+     state tomography via reduced density matrices, Physical Review Letters 118, 020401 (2017).
+[18] B. Lanyon, C. Maier, M. Holzäpfel, T. Baumgratz, C. Hempel, P. Jurcevic, I. Dhand, A. Buyskikh,
+     A. Daley, M. Cramer, et al., Efficient tomography of a quantum many-body system, Nature Physics
+     13, 1158 (2017).
+[19] G. Torlai, G. Mazzola, J. Carrasquilla, M. Troyer, R. Melko, and G. Carleo, Neural-network quantum
+     state tomography, Nature Physics 14, 447 (2018).
+[20] S. Lohani, B. T. Kirby, M. Brodsky, O. Danaci, and R. T. Glasser, Machine learning assisted quantum
+     state estimation, Machine Learning: Science and Technology 1, 035007 (2020).
+[21] L. Pereira, L. Zambrano, and A. Delgado, Scalable estimation of pure multi-qubit states, arXiv preprint
+     arXiv:2107.05691 (2021).
+[22] C. A. Riofrio, D. Gross, S. T. Flammia, T. Monz, D. Nigg, R. Blatt, and J. Eisert, Experimental
+     quantum compressed sensing for a seven-qubit system, Nature Communications 8, 1 (2017).
+[23] J. Schneeloch, C. C. Tison, M. L. Fanto, P. M. Alsing, and G. A. Howland, Quantifying entanglement
+     in a 68-billion-dimensional quantum state space, Nature Communications 10, 1 (2019).
+[24] R. Di Candia, B. Mejia, H. Castillo, J. Pedernales, J. Casanova, and E. Solano, Embedding quantum
+     simulators for quantum computation of entanglement, Physical Review Letters 111, 240502 (2013).
+[25] M. Schuld and F. Petruccione, Supervised learning with quantum computers, Vol. 17 (Springer, 2018).
+[26] V. Havlı́ček, A. D. Córcoles, K. Temme, A. W. Harrow, A. Kandala, J. M. Chow, and J. M. Gambetta,
+     Supervised learning with quantum-enhanced feature spaces, Nature 567, 209 (2019).
+[27] M. Schuld and N. Killoran, Quantum machine learning in feature Hilbert spaces, Physical Review
+                                                                                                       19
+
+
+     Letters 122, 040504 (2019).
+[28] S. Lloyd, M. Schuld, A. Ijaz, J. Izaac, and N. Killoran, Quantum embeddings for machine learning,
+     arXiv preprint arXiv:2001.03622 (2020).
+[29] A. Y. Kitaev, Quantum measurements and the abelian stabilizer problem, arXiv preprint quant-
+     ph/9511026 (1995).
+[30] M. A. Nielsen and I. L. Chuang, Quantum Computation and Quantum Information (Cambridge Uni-
+     versity Press, 2010).
+[31] M. Amico and C. Dittel, Simulation of wave-particle duality in multipath interferometers on a quantum
+     computer, Physical Review A 102, 032605 (2020).
+[32] W. Tadej and K. Życzkowski, A concise guide to complex Hadamard matrices, Open Systems & Infor-
+     mation Dynamics 13, 133 (2006).
+
