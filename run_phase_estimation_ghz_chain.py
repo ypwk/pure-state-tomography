@@ -12,7 +12,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from phase_estimation.algorithm import reconstruct_k_sparse_state
+from phase_estimation.algorithm import build_backend, reconstruct_k_sparse_state
 
 
 def build_ghz_circuit(num_qubits: int) -> QuantumCircuit:
@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-n", type=int, default=2, help="Minimum GHZ size.")
     parser.add_argument("--max-n", type=int, default=5 , help="Maximum GHZ size.")
     parser.add_argument(
-        "--runs", type=int, default=128, help="Number of repeated runs per GHZ size."
+        "--runs", type=int, default=64, help="Number of repeated runs per GHZ size."
     )
     parser.add_argument(
         "--phase1-shots", type=int, default=4096, help="Shots for support discovery."
@@ -56,8 +56,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-csv",
         type=str,
-        default="ghz_phase_estimation_metrics_6.csv",
+        default="ghz_phase_estimation_metrics.csv",
         help="Path to CSV file for per-run datapoints.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Optional master RNG seed for reproducible, non-identical runs.",
     )
     return parser.parse_args()
 
@@ -70,6 +76,9 @@ def main() -> None:
         raise ValueError("--max-n must be >= --min-n")
     if args.runs <= 0:
         raise ValueError("--runs must be positive")
+
+    backend = build_backend()
+    rng = np.random.default_rng(args.seed)
 
     print(
         "n | runs | phase_bits | avg_fid | std_fid | avg_elapsed_s | support_hit_rate",
@@ -103,12 +112,15 @@ def main() -> None:
             phase_bits_used = None
 
             for run_idx in range(args.runs):
+                run_seed = int(rng.integers(0, 2**31 - 1))
                 t0 = time.perf_counter()
                 result = reconstruct_k_sparse_state(
                     ghz,
                     phase_register_bits=args.phase_bits,
                     phase1_shots=args.phase1_shots,
                     phase2_shots=args.phase2_shots,
+                    backend=backend,
+                    seed=run_seed,
                 )
                 elapsed = time.perf_counter() - t0
 

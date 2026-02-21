@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 import numpy as np
+import src.qutils as qutils
 
 
 @dataclass
@@ -72,6 +73,8 @@ def reconstruct_k_sparse_state(
     phase1_shots: int = 4096,
     phase2_shots: int = 8192,
     support_probability_threshold: float | None = None,
+    backend=None,
+    seed: int | None = None,
 ) -> ReconstructionResult:
     """Run both phases and return reconstructed full statevector."""
     _require_qiskit()
@@ -84,8 +87,8 @@ def reconstruct_k_sparse_state(
     if phase_register_bits is None:
         phase_register_bits = max(4, n + 1)
 
-    backend = _build_backend()
-    sampler = _build_sampler(backend=backend)
+    if backend is None:
+        backend = build_backend()
 
     support_indices, support_probs = estimate_support_with_phase_estimation(
         state_prep_circuit,
@@ -94,7 +97,7 @@ def reconstruct_k_sparse_state(
         shots=phase1_shots,
         support_probability_threshold=support_probability_threshold,
         backend=backend,
-        sampler=sampler,
+        seed=seed,
     )
 
     reconstructed = recover_coefficients_least_squares(
@@ -102,7 +105,7 @@ def reconstruct_k_sparse_state(
         support_indices=support_indices,
         shots=phase2_shots,
         backend=backend,
-        sampler=sampler,
+        seed=None if seed is None else seed + 1_000_003,
     )
 
     return ReconstructionResult(
@@ -121,7 +124,7 @@ def estimate_support_with_phase_estimation(
     shots: int = 4096,
     support_probability_threshold: float | None = None,
     backend=None,
-    sampler=None,
+    seed: int | None = None,
 ) -> tuple[list[int], dict[int, float]]:
     """Estimate support basis indices (phase 1)."""
     _require_qiskit()
@@ -177,7 +180,7 @@ def estimate_support_with_phase_estimation(
         num_measured_bits=n,
         shots=shots,
         backend=backend,
-        sampler=sampler,
+        seed=seed,
     )
 
     if support_probability_threshold is None:
@@ -202,7 +205,7 @@ def recover_coefficients_least_squares(
     shots: int = 8192,
     basis_settings: Iterable[str] | None = None,
     backend=None,
-    sampler=None,
+    seed: int | None = None,
 ) -> np.ndarray:
     """Recover full statevector amplitudes using support-projected LS (phase 2)."""
     _require_qiskit()
@@ -240,7 +243,7 @@ def recover_coefficients_least_squares(
         num_measured_bits=n,
         shots=shots,
         backend=backend,
-        sampler=sampler,
+        seed=seed,
     )
 
     for basis, prob_by_outcome in zip(basis_list, prob_dicts):
@@ -367,35 +370,44 @@ def _solve_density_matrix_least_squares(
 
 
 def _sample_probability_dict(
-    circuit, *, num_measured_bits: int, shots: int, backend=None, sampler=None
+    circuit, *, num_measured_bits: int, shots: int, backend=None, seed: int | None = None
 ) -> dict[int, float]:
     return _sample_probability_dicts(
         [circuit],
         num_measured_bits=num_measured_bits,
         shots=shots,
         backend=backend,
-        sampler=sampler,
+        seed=seed,
     )[0]
 
 
 def _sample_probability_dicts(
-    circuits, *, num_measured_bits: int, shots: int, backend=None, sampler=None
+    circuits, *, num_measured_bits: int, shots: int, backend=None, seed: int | None = None
 ) -> list[dict[int, float]]:
     if backend is None:
-        backend = _build_backend()
-    if _backend_requires_transpile(backend):
-        circuits = _transpile_for_backend(circuits, backend)
-    if sampler is None:
-        sampler = _build_sampler(backend=backend)
-    job = sampler.run(circuits, shots=shots)
-    result = job.result()
-    prob_by_bitstring_list = _extract_probabilities_from_sampler_result(
-        result=result, num_measured_bits=num_measured_bits
-    )
-    return [
-        {int(bits, 2): p for bits, p in prob_by_bitstring.items()}
-        for prob_by_bitstring in prob_by_bitstring_list
-    ]
+        backend = build_backend()
+
+    max_outcomes = 1 << num_measured_bits
+    all_probs: list[dict[int, float]] = []
+
+    for idx, circuit in enumerate(circuits):
+        circuit_seed = None if seed is None else int(seed + idx)
+        probs = qutils.run_circuit(
+            backend,
+            circuit,
+            shots=shots,
+            batch_size=1,
+            base_seed=circuit_seed,
+        )[0]
+        all_probs.append(
+            {
+                idx: float(p)
+                for idx, p in enumerate(probs[:max_outcomes])
+                if float(p) > 0.0
+            }
+        )
+
+    return all_probs
 
 
 def _extract_probabilities_from_sampler_result(
@@ -559,16 +571,23 @@ def _build_sampler(*, backend):
     return SamplerV2()
 
 
-def _build_backend():
+def build_backend():
     _require_qiskit()
-    try:
-        from qiskit_ibm_runtime.fake_provider import FakeMarrakesh
+    from qiskit_aer import AerSimulator
+    from src.noise_modeling import make_custom_noise_model
 
-        return FakeMarrakesh()
-    except Exception:
-        from qiskit_aer import AerSimulator
+    noise_model = make_custom_noise_model(
+        p_1q=4.239e-4,
+        p_2q=3.416e-3,
+        p_meas=1.0e-2,
+        coherent_phase=0.0,
+        n_qubits=32,
+    )
+    return AerSimulator(noise_model=noise_model, method="density_matrix", device="CPU")
 
-        return AerSimulator(method="statevector")
+
+def _build_backend():
+    return build_backend()
 
 
 def _transpile_for_backend(circuit, backend):

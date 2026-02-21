@@ -233,7 +233,7 @@ def create_matrix_circuit(state, n_qubits) -> QuantumCircuit:
     return qc
 
 
-def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1, base_seed: int = 42) -> np.ndarray:
+def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1, base_seed: Optional[int] = 42) -> np.ndarray:
     """Runs the circuit on the simulator and prints runtime info + transpiled circuit structure."""
 
     dim = 1 << qc.num_qubits
@@ -290,12 +290,10 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1, base_seed: int = 4
     results = np.zeros((batch_size, dim))
 
     for i in range(batch_size):
-        sim_seed = base_seed + i
-        job = aer_sim.run(
-            t_qc,
-            shots=total_shots,
-            seed_simulator=sim_seed,
-        )
+        run_kwargs = {"shots": total_shots}
+        if base_seed is not None:
+            run_kwargs["seed_simulator"] = int(base_seed + i)
+        job = aer_sim.run(t_qc, **run_kwargs)
         counts = job.result().get_counts(t_qc)
         results[i] = _counts_to_prob(counts)
 
