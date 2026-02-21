@@ -15,7 +15,6 @@ The implementation targets small systems (n < 10) and ideal simulation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import product
 from typing import Iterable, Sequence
 
 import numpy as np
@@ -83,7 +82,10 @@ def reconstruct_k_sparse_state(
         raise ValueError("This implementation targets n < 10")
 
     if phase_register_bits is None:
-        phase_register_bits = max(6, n + 3)
+        phase_register_bits = max(4, n + 1)
+
+    backend = _build_backend()
+    sampler = _build_sampler(backend=backend)
 
     support_indices, support_probs = estimate_support_with_phase_estimation(
         state_prep_circuit,
@@ -91,12 +93,16 @@ def reconstruct_k_sparse_state(
         phase_register_bits=phase_register_bits,
         shots=phase1_shots,
         support_probability_threshold=support_probability_threshold,
+        backend=backend,
+        sampler=sampler,
     )
 
     reconstructed = recover_coefficients_least_squares(
         state_prep_circuit,
         support_indices=support_indices,
         shots=phase2_shots,
+        backend=backend,
+        sampler=sampler,
     )
 
     return ReconstructionResult(
@@ -114,6 +120,8 @@ def estimate_support_with_phase_estimation(
     phase_register_bits: int = 6,
     shots: int = 4096,
     support_probability_threshold: float | None = None,
+    backend=None,
+    sampler=None,
 ) -> tuple[list[int], dict[int, float]]:
     """Estimate support basis indices (phase 1)."""
     _require_qiskit()
@@ -138,23 +146,39 @@ def estimate_support_with_phase_estimation(
     # Standard QPE register preparation.
     qc.h(phase)
 
-    u_phi_gate = build_u_phi_circuit(n, phases=phases).to_gate(label="U_phi")
-    target_qubits = list(data) + [anc[0]]
+    if phases is None:
+        phases = _default_phases(n + 1)
+    if len(phases) != n + 1:
+        raise ValueError("phases must have length num_data_qubits + 1")
 
+    data_qubits = list(data)
     for j in range(phase_register_bits):
-        controlled_power = u_phi_gate.power(2**j).control(1)
-        qc.append(controlled_power, [phase[j]] + target_qubits)
+        repeats = 2**j
+        for _ in range(repeats):
+            _append_controlled_u_phi_once(
+                qc,
+                ctrl_qubit=phase[j],
+                data_qubits=data_qubits,
+                anc_qubit=anc[0],
+                phases=phases,
+            )
 
     iqft = QFT(
         num_qubits=phase_register_bits, inverse=True, do_swaps=False, name="iqft"
-    )
-    qc.append(iqft, phase)
+    ).decompose()
+    qc.compose(iqft, qubits=list(phase), inplace=True)
 
     # Step 4/5 (paper): apply H^n back and measure data qubits.
     qc.h(data)
     qc.measure(data, c_data)
 
-    probs = _sample_probability_dict(qc, num_measured_bits=n, shots=shots)
+    probs = _sample_probability_dict(
+        qc,
+        num_measured_bits=n,
+        shots=shots,
+        backend=backend,
+        sampler=sampler,
+    )
 
     if support_probability_threshold is None:
         support_probability_threshold = max(1.0 / shots, 0.005)
@@ -177,6 +201,8 @@ def recover_coefficients_least_squares(
     support_indices: Sequence[int],
     shots: int = 8192,
     basis_settings: Iterable[str] | None = None,
+    backend=None,
+    sampler=None,
 ) -> np.ndarray:
     """Recover full statevector amplitudes using support-projected LS (phase 2)."""
     _require_qiskit()
@@ -191,12 +217,15 @@ def recover_coefficients_least_squares(
         raise ValueError("support_indices contains invalid basis index")
 
     if basis_settings is None:
-        basis_settings = ("".join(chars) for chars in product("ZXY", repeat=n))
+        basis_list = _default_basis_settings(num_qubits=n, support_dim=len(support))
+    else:
+        basis_list = list(basis_settings)
 
     rows: list[np.ndarray] = []
     y_vals: list[float] = []
+    meas_circuits = []
 
-    for basis in basis_settings:
+    for basis in basis_list:
         if len(basis) != n or any(b not in "XYZ" for b in basis):
             raise ValueError("Each basis setting must be a length-n string in {X,Y,Z}")
 
@@ -204,9 +233,17 @@ def recover_coefficients_least_squares(
         meas.compose(state_prep_circuit, qubits=list(range(n)), inplace=True)
         _apply_measurement_basis_rotation(meas, basis)
         meas.measure(range(n), range(n))
+        meas_circuits.append(meas)
 
-        prob_by_outcome = _sample_probability_dict(meas, num_measured_bits=n, shots=shots)
+    prob_dicts = _sample_probability_dicts(
+        meas_circuits,
+        num_measured_bits=n,
+        shots=shots,
+        backend=backend,
+        sampler=sampler,
+    )
 
+    for basis, prob_by_outcome in zip(basis_list, prob_dicts):
         for outcome in range(2**n):
             p = prob_by_outcome.get(outcome, 0.0)
             m = _restricted_measurement_operator_row(
@@ -290,6 +327,19 @@ def _apply_measurement_basis_rotation(circuit, basis: str) -> None:
             raise ValueError(f"Unsupported basis axis: {axis}")
 
 
+def _append_controlled_u_phi_once(
+    circuit, *, ctrl_qubit, data_qubits: Sequence, anc_qubit, phases: Sequence[float]
+) -> None:
+    """Append one controlled-U_phi application using primitive controlled gates."""
+    n = len(data_qubits)
+    for k in range(n):
+        circuit.crx(-np.pi / 2, ctrl_qubit, anc_qubit)
+        circuit.cp(float(phases[k]), ctrl_qubit, anc_qubit)
+        circuit.ccx(ctrl_qubit, anc_qubit, data_qubits[k])
+    circuit.crx(-np.pi / 2, ctrl_qubit, anc_qubit)
+    circuit.cp(float(phases[n]), ctrl_qubit, anc_qubit)
+
+
 def _solve_density_matrix_least_squares(
     a_complex: np.ndarray, y: np.ndarray, support_dim: int
 ) -> np.ndarray:
@@ -316,53 +366,89 @@ def _solve_density_matrix_least_squares(
     return (v * w) @ v.conj().T
 
 
-def _sample_probability_dict(circuit, *, num_measured_bits: int, shots: int) -> dict[int, float]:
-    backend = _build_backend()
-    circuit = _transpile_for_backend(circuit, backend)
-    sampler = _build_sampler(backend=backend)
-    job = sampler.run([circuit], shots=shots)
+def _sample_probability_dict(
+    circuit, *, num_measured_bits: int, shots: int, backend=None, sampler=None
+) -> dict[int, float]:
+    return _sample_probability_dicts(
+        [circuit],
+        num_measured_bits=num_measured_bits,
+        shots=shots,
+        backend=backend,
+        sampler=sampler,
+    )[0]
+
+
+def _sample_probability_dicts(
+    circuits, *, num_measured_bits: int, shots: int, backend=None, sampler=None
+) -> list[dict[int, float]]:
+    if backend is None:
+        backend = _build_backend()
+    if _backend_requires_transpile(backend):
+        circuits = _transpile_for_backend(circuits, backend)
+    if sampler is None:
+        sampler = _build_sampler(backend=backend)
+    job = sampler.run(circuits, shots=shots)
     result = job.result()
-    prob_by_bitstring = _extract_probabilities_from_sampler_result(
+    prob_by_bitstring_list = _extract_probabilities_from_sampler_result(
         result=result, num_measured_bits=num_measured_bits
     )
-    return {int(bits, 2): p for bits, p in prob_by_bitstring.items()}
+    return [
+        {int(bits, 2): p for bits, p in prob_by_bitstring.items()}
+        for prob_by_bitstring in prob_by_bitstring_list
+    ]
 
 
 def _extract_probabilities_from_sampler_result(
     *, result, num_measured_bits: int
-) -> dict[str, float]:
+) -> list[dict[str, float]]:
     """Best-effort parser across SamplerV2 result variants."""
     # Variant 1: legacy-like quasi distribution list
     quasi_dists = getattr(result, "quasi_dists", None)
     if quasi_dists is not None and len(quasi_dists) > 0:
-        return _normalize_probability_map(
-            {
-                _format_outcome_key(k, num_measured_bits): float(v)
-                for k, v in quasi_dists[0].items()
-            }
-        )
+        all_probs = []
+        for quasi in quasi_dists:
+            all_probs.append(
+                _normalize_probability_map(
+                    {
+                        _format_outcome_key(k, num_measured_bits): float(v)
+                        for k, v in quasi.items()
+                    }
+                )
+            )
+        return all_probs
 
     # Variant 2: PubResult style (result[0].data.<creg>.get_counts())
     try:
-        pub = result[0]
-        data = getattr(pub, "data", None)
-        if data is not None:
-            # First try standard "meas" field.
+        all_probs = []
+        for pub in result:
+            data = getattr(pub, "data", None)
+            if data is None:
+                continue
+
             meas = getattr(data, "meas", None)
             if meas is not None and hasattr(meas, "get_counts"):
-                return _counts_to_probabilities(
-                    meas.get_counts(), num_measured_bits=num_measured_bits
+                all_probs.append(
+                    _counts_to_probabilities(
+                        meas.get_counts(), num_measured_bits=num_measured_bits
+                    )
                 )
+                continue
 
-            # Then scan all public attributes for get_counts.
+            found = None
             for name in dir(data):
                 if name.startswith("_"):
                     continue
                 obj = getattr(data, name)
                 if hasattr(obj, "get_counts"):
-                    return _counts_to_probabilities(
+                    found = _counts_to_probabilities(
                         obj.get_counts(), num_measured_bits=num_measured_bits
                     )
+                    break
+            if found is not None:
+                all_probs.append(found)
+
+        if all_probs:
+            return all_probs
     except Exception:
         pass
 
@@ -407,12 +493,53 @@ def _default_phases(length: int) -> list[float]:
     return [2.0 * np.pi * j / length for j in range(length)]
 
 
+def _default_basis_settings(num_qubits: int, support_dim: int) -> list[str]:
+    """Compact Pauli-basis set for practical sparse recovery.
+
+    Uses O(support_dim log support_dim) random settings, independent from 3^n.
+    """
+    base = {
+        "Z" * num_qubits,
+        "X" * num_qubits,
+        "Y" * num_qubits,
+    }
+    for q in range(num_qubits):
+        x_local = ["Z"] * num_qubits
+        y_local = ["Z"] * num_qubits
+        x_local[q] = "X"
+        y_local[q] = "Y"
+        base.add("".join(x_local))
+        base.add("".join(y_local))
+
+    target = max(len(base), int(np.ceil(8 * support_dim * np.log2(max(2, support_dim)))))
+    target = min(target, 64, 3**num_qubits)
+
+    rng = np.random.default_rng(7)
+    axes = np.array(list("XYZ"))
+    settings = set(base)
+    while len(settings) < target:
+        s = "".join(rng.choice(axes, size=num_qubits, replace=True).tolist())
+        settings.add(s)
+    return sorted(settings)
+
+
 def _int_to_msb_bits(value: int, num_bits: int) -> list[int]:
     return [int(ch) for ch in format(value, f"0{num_bits}b")]
 
 
 def _build_sampler(*, backend):
     _require_qiskit()
+    # Prefer Aer native primitive for Aer backend.
+    if "AerSimulator" in backend.__class__.__name__:
+        from qiskit_aer.primitives import SamplerV2
+
+        for kwargs in ({"backend": backend}, {"mode": backend}, {}):
+            try:
+                return SamplerV2(**kwargs)
+            except TypeError:
+                continue
+        return SamplerV2()
+
     # Prefer backend-bound primitive when available.
     try:
         from qiskit.primitives import BackendSamplerV2
@@ -421,7 +548,7 @@ def _build_sampler(*, backend):
     except Exception:
         pass
 
-    # Aer SamplerV2 fallback.
+    # Generic fallback.
     from qiskit_aer.primitives import SamplerV2
 
     for kwargs in ({"backend": backend}, {"mode": backend}, {}):
@@ -434,19 +561,24 @@ def _build_sampler(*, backend):
 
 def _build_backend():
     _require_qiskit()
-    # from qiskit_aer import AerSimulator
-    #
-    # return AerSimulator(method="automatic")
+    try:
+        from qiskit_ibm_runtime.fake_provider import FakeMarrakesh
 
-    from qiskit_ibm_runtime.fake_provider import FakeMarrakesh
+        return FakeMarrakesh()
+    except Exception:
+        from qiskit_aer import AerSimulator
 
-    return FakeMarrakesh()
+        return AerSimulator(method="statevector")
 
 
 def _transpile_for_backend(circuit, backend):
     from qiskit import transpile
 
     return transpile(circuit, backend=backend, optimization_level=0)
+
+
+def _backend_requires_transpile(backend) -> bool:
+    return "AerSimulator" not in backend.__class__.__name__
 
 
 def _require_qiskit() -> None:
