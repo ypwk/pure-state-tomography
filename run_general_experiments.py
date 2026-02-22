@@ -358,10 +358,6 @@ def _run_one(
             epsilon=epsilon,
             masked=masked,
         )
-    else:
-        res = cai(
-            state=circ
-        )
 
     _postprocess_log(circ, res, tomotype)
 

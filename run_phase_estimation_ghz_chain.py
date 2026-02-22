@@ -12,7 +12,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from phase_estimation.algorithm import build_backend, reconstruct_k_sparse_state
+from phase_estimation.algorithm import reconstruct_k_sparse_state
 
 
 def build_ghz_circuit(num_qubits: int) -> QuantumCircuit:
@@ -37,20 +37,20 @@ def parse_args() -> argparse.Namespace:
         description="Run phase-estimation tomography on GHZ chains."
     )
     parser.add_argument("--min-n", type=int, default=2, help="Minimum GHZ size.")
-    parser.add_argument("--max-n", type=int, default=5 , help="Maximum GHZ size.")
+    parser.add_argument("--max-n", type=int, default=10, help="Maximum GHZ size.")
     parser.add_argument(
-        "--runs", type=int, default=64, help="Number of repeated runs per GHZ size."
+        "--runs", type=int, default=1, help="Number of repeated runs per GHZ size."
     )
     parser.add_argument(
         "--phase1-shots", type=int, default=4096, help="Shots for support discovery."
     )
     parser.add_argument(
-        "--phase2-shots", type=int, default=8192, help="Shots for LS recovery."
+        "--phase2-shots", type=int, default=4096, help="Shots for LS recovery."
     )
     parser.add_argument(
         "--phase-bits",
         type=int,
-        default=4,
+        default=2,
         help="Phase-estimation register bits (default: algorithm heuristic).",
     )
     parser.add_argument(
@@ -77,18 +77,16 @@ def main() -> None:
     if args.runs <= 0:
         raise ValueError("--runs must be positive")
 
-    backend = build_backend()
     rng = np.random.default_rng(args.seed)
 
     print(
-        "n | runs | phase_bits | avg_fid | std_fid | avg_elapsed_s | support_hit_rate",
+        "n | runs | avg_fid | std_fid | avg_elapsed_s | support_hit_rate",
         flush=True,
     )
     print("-" * 100, flush=True)
     fieldnames = [
         "n",
         "run_idx",
-        "phase_bits",
         "phase1_shots",
         "phase2_shots",
         "fidelity",
@@ -119,25 +117,24 @@ def main() -> None:
                     phase_register_bits=args.phase_bits,
                     phase1_shots=args.phase1_shots,
                     phase2_shots=args.phase2_shots,
-                    backend=backend,
                     seed=run_seed,
                 )
                 elapsed = time.perf_counter() - t0
 
-                fidelity = fidelity_up_to_global_phase(result.statevector, target)
-                support_hit = int(set(result.support_indices) == expected_support)
-                support_str = " ".join(format(i, f"0{n}b") for i in sorted(result.support_indices))
+                fidelity = fidelity_up_to_global_phase(result, target)
+                nonzero_indices = set(result.nonzero()[0])
+                support_hit = int(nonzero_indices == expected_support)
+                support_str = " ".join(format(i, f"0{n}b") for i in sorted(nonzero_indices))
 
                 writer.writerow(
                     {
                         "n": n,
                         "run_idx": run_idx,
-                        "phase_bits": result.phase_register_bits,
                         "phase1_shots": args.phase1_shots,
                         "phase2_shots": args.phase2_shots,
                         "fidelity": fidelity,
                         "elapsed_s": elapsed,
-                        "support_size": len(result.support_indices),
+                        "support_size": len(nonzero_indices),
                         "support_hit": support_hit,
                         "support_indices": support_str,
                     }
@@ -148,11 +145,9 @@ def main() -> None:
                 fidelities.append(fidelity)
                 elapsed_times.append(elapsed)
                 support_hits += support_hit
-                if phase_bits_used is None:
-                    phase_bits_used = result.phase_register_bits
 
             print(
-                f"{n:>1} | {args.runs:>4} | {int(phase_bits_used):>10} | "
+                f"{n:>1} | {args.runs:>4} | | "
                 f"{np.mean(fidelities):>7.6f} | {np.std(fidelities):>7.6f} | "
                 f"{np.mean(elapsed_times):>13.4f} | {support_hits / args.runs:>16.4f}",
                 flush=True,

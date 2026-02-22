@@ -47,7 +47,7 @@ def make_custom_noise_model(
 
     # -- Apply noise to gate types --
 
-    target_1q = ['h', 'u1', 'u2', 'u3', 'rz', 'sx', 'x', 'id']
+    target_1q = ['h', 'u1', 'u2', 'u3', 'rz', 'sx', 'x', 'id', 'sdg']
 
     for q in range(n_qubits):
         if c_1q:
@@ -62,6 +62,6 @@ def make_custom_noise_model(
         for q0 in range(n_qubits):
             for q1 in range(n_qubits):
                 if q0 != q1:
-                    nm.add_quantum_error(c_2q, ['cx'], [q0, q1])
+                    nm.add_quantum_error(c_2q, ['cx', "cz"], [q0, q1])
 
     return nm

@@ -1,2 +1,0 @@
-n,run_idx,phase_bits,phase1_shots,phase2_shots,fidelity,elapsed_s,support_size,support_hit,support_indices
-2,0,4,128,256,0.9911404452877705,2.328043700006674,4,0,00 01 10 11

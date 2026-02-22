@@ -265,6 +265,7 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1, base_seed: Optiona
         # initial_layout=initial_layout,
         layout_method="trivial",         # keep your mapping, don't be “smart”
     )
+    _assert_circuit_gates_covered_by_noise_model(aer_sim, t_qc)
 
     # # ----------------------------------------------------------------------
     # print("\n========== Transpiled Circuit ==========")
@@ -304,6 +305,32 @@ def run_circuit(aer_sim, qc, shots=1024, batch_size: int = 1, base_seed: Optiona
     #       f"({elapsed / batch_size:.6f} per batch)")
 
     return results
+
+
+def _assert_circuit_gates_covered_by_noise_model(aer_sim, circuit: QuantumCircuit) -> None:
+    """Raise if transpiled gate operations are not present in the backend noise model."""
+    noise_model = getattr(getattr(aer_sim, "options", None), "noise_model", None)
+    if noise_model is None:
+        return
+
+    noisy_ops = set(getattr(noise_model, "noise_instructions", []) or [])
+    if not noisy_ops:
+        return
+
+    ignored_ops = {"measure", "barrier", "delay", "reset"}
+    used_gate_ops = {
+        instr.operation.name
+        for instr in circuit.data
+        if instr.operation.name not in ignored_ops
+    }
+
+    missing = sorted(op for op in used_gate_ops if op not in noisy_ops)
+    if missing:
+        raise ValueError(
+            "Transpiled circuit contains gates not covered by the noise model. "
+            f"Missing: {', '.join(missing)}. "
+            f"Noise model instructions: {', '.join(sorted(noisy_ops))}"
+        )
 
 
 def circuit_to_statevector(qc: QuantumCircuit) -> np.ndarray:
