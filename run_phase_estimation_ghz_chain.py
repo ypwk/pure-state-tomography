@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
         description="Run phase-estimation tomography on GHZ chains."
     )
     parser.add_argument("--min-n", type=int, default=2, help="Minimum GHZ size.")
-    parser.add_argument("--max-n", type=int, default=10, help="Maximum GHZ size.")
+    parser.add_argument("--max-n", type=int, default=4, help="Maximum GHZ size.")
     parser.add_argument(
         "--runs", type=int, default=1, help="Number of repeated runs per GHZ size."
     )
@@ -45,7 +45,7 @@ def parse_args() -> argparse.Namespace:
         "--phase1-shots", type=int, default=4096, help="Shots for support discovery."
     )
     parser.add_argument(
-        "--phase2-shots", type=int, default=4096, help="Shots for LS recovery."
+        "--phase2-shots", type=int, default=16384, help="Shots for LS recovery."
     )
     parser.add_argument(
         "--phase-bits",
@@ -119,6 +119,7 @@ def main() -> None:
                     phase2_shots=args.phase2_shots,
                     seed=run_seed,
                 )
+                print(result)
                 elapsed = time.perf_counter() - t0
 
                 fidelity = fidelity_up_to_global_phase(result, target)

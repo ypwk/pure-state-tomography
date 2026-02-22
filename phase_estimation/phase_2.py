@@ -181,7 +181,7 @@ def measure_pauli_expectations(
     )
     aer_sim = AerSimulator(
         # noise_model=noise_model,
-        # method="density_matrix",
+        method="statevector",
         # device="CPU",
     )
 
@@ -398,9 +398,7 @@ def phase2_recover_coefficients(
         support_indices=support,
         num_measurements=default_M,
         shots=shots,
-        backend=backend,
         seed=seed,
-        solver="iht",
     )
     return np.asarray([full[idx] for idx in support], dtype=complex)
 
