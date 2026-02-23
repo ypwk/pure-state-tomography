@@ -9,22 +9,73 @@ Gulbahar (2021), "K-sparse Pure State Tomography with Phase Estimation":
 2) Recover complex coefficients on that support by linear least squares over
    measurement probabilities from local Pauli-basis settings.
 """
+
 import numpy as np
+from qiskit.quantum_info import DensityMatrix, Statevector
+from qiskit_aer import AerSimulator
 
-from phase_estimation.embed import embed_support_state
 from phase_estimation.phase_1 import phase1_recover_support
-from phase_estimation.phase_2 import recover_coefficients_pauli_cs
+from phase_estimation.phase_2 import compressed_sensing_phase2_magnitudes
+from src.noise_modeling import make_custom_noise_model
 
+
+def project_density_matrix_to_pure_state(
+        rho: DensityMatrix,
+        *,
+        atol: float = 1e-12,
+) -> Statevector:
+    """
+    Project a (nearly pure) density matrix onto a pure state vector by
+    taking the eigenvector corresponding to the largest eigenvalue.
+
+    This is the optimal rank-1 approximation in fidelity.
+
+    Parameters
+    ----------
+    rho : DensityMatrix
+        Full density matrix (d x d), assumed Hermitian and trace 1.
+    atol : float
+        Numerical tolerance for eigenvalue clipping.
+
+    Returns
+    -------
+    Statevector
+        Normalized pure state |psi> approximating rho.
+    """
+    # Convert to NumPy array
+    mat = np.asarray(rho.data, dtype=complex)
+
+    # Hermitize defensively
+    mat = 0.5 * (mat + mat.conj().T)
+
+    # Eigen-decomposition (Hermitian → eigh)
+    evals, evecs = np.linalg.eigh(mat)
+
+    # Select dominant eigenpair
+    idx = np.argmax(evals)
+    lam = evals[idx]
+    psi = evecs[:, idx]
+
+    if lam < atol:
+        raise ValueError(
+            "Density matrix has no dominant eigenvalue; "
+            "state is not close to pure."
+        )
+
+    # Normalize (eigh returns normalized vectors, but be explicit)
+    psi = psi / np.linalg.norm(psi)
+
+    return Statevector(psi)
 
 
 def reconstruct_k_sparse_state(
-    state_prep_circuit,
-    *,
-    phase_register_bits: int,
-    phase1_shots: int,
-    phase2_shots: int,
-    phase2_num_measurements: int | None = None,
-    seed: int | None = None,
+        state_prep_circuit,
+        *,
+        phase_register_bits: int,
+        phase1_shots: int,
+        phase2_shots: int,
+        phase2_num_measurements: int | None = None,
+        seed: int | None = None,
 ):
     """
     Reconstruct a K-sparse pure n-qubit state using:
@@ -32,8 +83,22 @@ def reconstruct_k_sparse_state(
       Phase 2: coefficient recovery via compressed sensing
     """
     # Phase 1: recover computational-basis support
+    noise_model = make_custom_noise_model( # dont get rid of me!
+        p_1q=4.239e-4,
+        p_2q=3.416e-3,
+        p_meas=1e-2,
+        coherent_phase=0.0,
+        n_qubits=10,
+    )
+    aer_sim = AerSimulator(
+        noise_model=noise_model, # note that noise is disabled right now for testing. I will renable it later
+        method="density_matrix",
+        device="GPU",
+    )
+    # aer_sim = AerSimulator.from_backend(FakeMarrakesh())
     support = phase1_recover_support(
         state_prep_circuit,
+        aer_sim,
         phase_register_bits=phase_register_bits,
         shots=phase1_shots,
         seed=seed,
@@ -42,22 +107,18 @@ def reconstruct_k_sparse_state(
     # Phase 2: estimate full state from support-restricted Pauli CS
     k = len(support)
     if phase2_num_measurements is None:
-        phase2_num_measurements = max(8, int(4 * k * np.ceil(np.log2(k + 1))))
+        phase2_num_measurements = 4
 
-    full_state = recover_coefficients_pauli_cs(
+    print(f"Number of measurements: {phase2_num_measurements}")
+
+    rho_hat = compressed_sensing_phase2_magnitudes(
         state_prep_circuit,
-        support_indices=support,
-        num_measurements=phase2_num_measurements,
+        aer_sim,
+        support=support,
         shots=phase2_shots,
+        num_measurements=phase2_num_measurements,
         seed=seed,
     )
 
-    # Optional consistency projection onto recovered support.
-    # recover_coefficients_pauli_cs already returns a full vector with off-support 0.
-    full_state = embed_support_state(
-        [full_state[idx] for idx in support],
-        support_indices=support,
-        num_qubits=state_prep_circuit.num_qubits,
-        normalize=True,
-    )
-    return full_state
+    psi_hat = project_density_matrix_to_pure_state(DensityMatrix(rho_hat))
+    return psi_hat.data

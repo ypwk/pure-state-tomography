@@ -121,6 +121,7 @@ def build_phase1_circuit(
 
 def phase1_recover_support(
     state_prep_circuit,
+    aer_sim,
     *,
     phase_register_bits: int,
     shots: int,
@@ -133,23 +134,10 @@ def phase1_recover_support(
         raise ValueError("shots must be positive")
 
     num_data_qubits = state_prep_circuit.num_qubits
-    total_qubits = num_data_qubits + phase_register_bits + 1
 
-    noise_model = make_custom_noise_model(
-        p_1q=4.239e-4,
-        p_2q=3.416e-3,
-        p_meas=1e-2,
-        coherent_phase=0.0,
-        n_qubits=max(10, total_qubits),
-    )
-    aer_sim = AerSimulator(
-        noise_model=noise_model,
-        method="density_matrix",
-        device="CPU",
-    )
-
-    rng = np.random.default_rng(seed)
-    phis = rng.uniform(0.0, 2.0 * np.pi, size=num_data_qubits + 1)
+    # rng = np.random.default_rng(seed)
+    # phis = rng.uniform(0.0, 2.0 * np.pi, size=num_data_qubits + 1)
+    phis = np.zeros(num_data_qubits + 1)
     qc = build_phase1_circuit(
         state_prep_circuit,
         phase_register_bits=phase_register_bits,
@@ -165,11 +153,15 @@ def phase1_recover_support(
     )[0]
 
     data_dim = 1 << num_data_qubits
-    data_mask = data_dim - 1
     data_probs = np.zeros(data_dim, dtype=float)
+    t = phase_register_bits
+    n = num_data_qubits
+    data_mask = (1 << n) - 1
     for idx, p in enumerate(probs):
-        data_probs[idx & data_mask] += p
+        data_index = (idx >> t) & data_mask
+        data_probs[data_index] += p
 
-    # support = np.flatnonzero(data_probs >= 0).astype(int).tolist()
-    support = np.array([0, len(data_probs) - 1])
+    support = np.flatnonzero(data_probs >= 0.1).astype(int).tolist()
+    # support = np.array([0, len(data_probs) - 1])
+    # print(f"phase 1 support: {sorted(support)}")
     return sorted(support)

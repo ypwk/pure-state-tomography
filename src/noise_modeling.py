@@ -47,7 +47,11 @@ def make_custom_noise_model(
 
     # -- Apply noise to gate types --
 
-    target_1q = ['h', 'u1', 'u2', 'u3', 'rz', 'sx', 'x', 'id', 'sdg']
+    target_1q = [
+        'h', 'x', 'sx', 'id', 'sdg',
+        'rx', 'ry', 'rz', 'p',
+        'u', 'u1', 'u2', 'u3',
+    ]
 
     for q in range(n_qubits):
         if c_1q:

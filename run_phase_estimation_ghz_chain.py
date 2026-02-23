@@ -19,7 +19,8 @@ def build_ghz_circuit(num_qubits: int) -> QuantumCircuit:
     if num_qubits < 2:
         raise ValueError("GHZ requires at least 2 qubits")
     qc = QuantumCircuit(num_qubits, name=f"ghz_{num_qubits}")
-    qc.h(0)
+    qc.ry(np.pi / 3, 0)
+    # qc.h(0)
     for i in range(num_qubits - 1):
         qc.cx(i, i + 1)
     return qc
@@ -32,17 +33,39 @@ def fidelity_up_to_global_phase(psi: np.ndarray, phi: np.ndarray) -> float:
     return float(np.abs(np.vdot(phi, aligned)) ** 2)
 
 
+def print_run_line(
+    *,
+    n: int,
+    run_idx: int,
+    fidelity: float,
+    elapsed: float,
+    support_size: int,
+    support_hit: int,
+    support_indices: str,
+) -> None:
+    print(
+        f"n={n} "
+        f"run={run_idx:03d} "
+        f"fid={fidelity:.6f} "
+        f"elapsed_s={elapsed:.4f} "
+        f"support_size={support_size} "
+        f"support_hit={support_hit} "
+        f"support=[{support_indices}]",
+        flush=True,
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run phase-estimation tomography on GHZ chains."
     )
-    parser.add_argument("--min-n", type=int, default=2, help="Minimum GHZ size.")
-    parser.add_argument("--max-n", type=int, default=4, help="Maximum GHZ size.")
+    parser.add_argument("--min-n", type=int, default=3, help="Minimum GHZ size.")
+    parser.add_argument("--max-n", type=int, default=10, help="Maximum GHZ size.")
     parser.add_argument(
-        "--runs", type=int, default=1, help="Number of repeated runs per GHZ size."
+        "--runs", type=int, default=128, help="Number of repeated runs per GHZ size."
     )
     parser.add_argument(
-        "--phase1-shots", type=int, default=4096, help="Shots for support discovery."
+        "--phase1-shots", type=int, default=8196, help="Shots for support discovery."
     )
     parser.add_argument(
         "--phase2-shots", type=int, default=16384, help="Shots for LS recovery."
@@ -79,10 +102,10 @@ def main() -> None:
 
     rng = np.random.default_rng(args.seed)
 
-    print(
-        "n | runs | avg_fid | std_fid | avg_elapsed_s | support_hit_rate",
-        flush=True,
-    )
+    # print(
+    #     "n | runs | avg_fid | std_fid | avg_elapsed_s | support_hit_rate",
+    #     flush=True,
+    # )
     print("-" * 100, flush=True)
     fieldnames = [
         "n",
@@ -122,10 +145,15 @@ def main() -> None:
                 print(result)
                 elapsed = time.perf_counter() - t0
 
+
+                # print(result)
+
                 fidelity = fidelity_up_to_global_phase(result, target)
                 nonzero_indices = set(result.nonzero()[0])
                 support_hit = int(nonzero_indices == expected_support)
-                support_str = " ".join(format(i, f"0{n}b") for i in sorted(nonzero_indices))
+                support_str = " ".join(
+                    format(i, f"0{n}b")[::-1] for i in sorted(nonzero_indices)
+                )
 
                 writer.writerow(
                     {
@@ -140,6 +168,18 @@ def main() -> None:
                         "support_indices": support_str,
                     }
                 )
+
+                print_run_line(
+                    n=n,
+                    run_idx=run_idx,
+                    fidelity=fidelity,
+                    elapsed=elapsed,
+                    support_size=len(nonzero_indices),
+                    support_hit=support_hit,
+                    support_indices=support_str,
+                )
+
+                # print(f"{n:>1} | {args.runs:>4} | | fidelity: {fidelity}")
                 csv_file.flush()
                 os.fsync(csv_file.fileno())
 
@@ -148,9 +188,12 @@ def main() -> None:
                 support_hits += support_hit
 
             print(
-                f"{n:>1} | {args.runs:>4} | | "
-                f"{np.mean(fidelities):>7.6f} | {np.std(fidelities):>7.6f} | "
-                f"{np.mean(elapsed_times):>13.4f} | {support_hits / args.runs:>16.4f}",
+                f"SUMMARY n={n} "
+                f"runs={args.runs} "
+                f"avg_fid={np.mean(fidelities):.6f} "
+                f"std_fid={np.std(fidelities):.6f} "
+                f"avg_elapsed_s={np.mean(elapsed_times):.4f} "
+                f"support_hit_rate={support_hits / args.runs:.4f}",
                 flush=True,
             )
     print(f"\nSaved per-run datapoints to: {args.out_csv}", flush=True)
