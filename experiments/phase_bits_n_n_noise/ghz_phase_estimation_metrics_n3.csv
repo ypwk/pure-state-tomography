@@ -1,0 +1,2 @@
+n,run_idx,phase1_shots,phase2_shots,fidelity_pure,fidelity_density,elapsed_s,support_size,support_hit,support_indices
+3,0,8196,16384,0.9999035311782465,0.9718488404597159,5.377585137001006,3,0,000 100 111

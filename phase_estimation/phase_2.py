@@ -208,37 +208,34 @@ def _sample_pauli_strings(
     num_measurements: int,
     rng: np.random.Generator,
 ) -> list[str]:
-    """Deterministic core + randomized tail.
-
-    For very small systems, use the full Pauli set to ensure
-    informational completeness.
-    """
-    core = []
+    """Deterministic core + randomized tail, without repeats."""
     if num_measurements <= 0:
-        return core
+        return []
 
-    if n_qubits <= 3:
-        from itertools import product
+    max_unique = 4 ** n_qubits
+    num_measurements = min(num_measurements, max_unique)
 
-        paulis = ["I", "X", "Y", "Z"]
-        full = ["".join(p) for p in product(paulis, repeat=n_qubits)]
-        return full
+    result: list[str] = []
+    used: set[str] = set()
 
-    # Core set to stabilize phase recovery (esp. GHZ-like states)
-    core_candidates = ["I" * n_qubits, "Z" * n_qubits, "X" * n_qubits, "Y" * n_qubits]
-    for s in core_candidates:
-        if len(core) >= num_measurements:
-            break
-        core.append(s)
+    # # # Core set
+    # core_candidates = ["I" * n_qubits, "Z" * n_qubits, "X" * n_qubits, "Y" * n_qubits]
+    # for s in core_candidates:
+    #     if len(result) >= num_measurements:
+    #         break
+    #     if s not in used:
+    #         result.append(s)
+    #         used.add(s)
 
     # Random tail
-    if len(core) < num_measurements:
-        paulis = np.array(["I", "X", "Y", "Z"], dtype=object)
-        remaining = num_measurements - len(core)
-        for _ in range(remaining):
-            s = "".join(rng.choice(paulis, size=n_qubits, replace=True))
-            core.append(s)
-    return core
+    paulis = np.array(["I", "X", "Y", "Z"], dtype=object)
+    while len(result) < num_measurements:
+        s = "".join(rng.choice(paulis, size=n_qubits, replace=True))
+        if s not in used:
+            result.append(s)
+            used.add(s)
+
+    return result
 
 
 def compressed_sensing_phase2_magnitudes(
@@ -295,7 +292,7 @@ def compressed_sensing_phase2_magnitudes(
     if epsilon is None:
         # Conservative L2 noise bound across m measurements
         m = len(pauli_strings)
-        epsilon = 3.0 * np.sqrt(m) / np.sqrt(shots)
+        epsilon = 5.0 * np.sqrt(m) / np.sqrt(shots)
 
     rho_hat = reconstruct_density_matrix(
         measurements=measurements,
@@ -304,8 +301,4 @@ def compressed_sensing_phase2_magnitudes(
         promote_low_rank=False,
         solver=solver,
     )
-    abs_rho = np.abs(rho_hat)
-    idx = np.argwhere(abs_rho > 1e-6)
-    # print("nonzero indices:", idx[:10])  # should only show support rows/cols
-    # print("support:", support)
     return rho_hat

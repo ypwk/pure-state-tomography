@@ -81,6 +81,12 @@ def reconstruct_k_sparse_state(
     Reconstruct a K-sparse pure n-qubit state using:
       Phase 1: support recovery via phase estimation
       Phase 2: coefficient recovery via compressed sensing
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        (psi_hat, rho_hat) where psi_hat is the projected pure-state estimate
+        and rho_hat is the reconstructed density matrix estimate.
     """
     # Phase 1: recover computational-basis support
     noise_model = make_custom_noise_model( # dont get rid of me!
@@ -105,11 +111,8 @@ def reconstruct_k_sparse_state(
     )
 
     # Phase 2: estimate full state from support-restricted Pauli CS
-    k = len(support)
     if phase2_num_measurements is None:
-        phase2_num_measurements = 4
-
-    print(f"Number of measurements: {phase2_num_measurements}")
+        phase2_num_measurements = state_prep_circuit.num_qubits ** 2 * 2 ** (state_prep_circuit.num_qubits)
 
     rho_hat = compressed_sensing_phase2_magnitudes(
         state_prep_circuit,
@@ -119,6 +122,5 @@ def reconstruct_k_sparse_state(
         num_measurements=phase2_num_measurements,
         seed=seed,
     )
-
     psi_hat = project_density_matrix_to_pure_state(DensityMatrix(rho_hat))
-    return psi_hat.data
+    return psi_hat.data, rho_hat
