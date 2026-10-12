@@ -1,0 +1,123 @@
+{
+  "artifacts": [
+    "admixture_sweep.csv"
+  ],
+  "command": "main",
+  "experiment": {
+    "base_dir": "/home/kwu/Research/pure-state-tomography",
+    "dependencies": [
+      "numpy==2.3.5",
+      "pyyaml==6.0.3",
+      "sacred==0.8.7"
+    ],
+    "mainfile": "run_admixture_sweep.py",
+    "name": "admixture_sweep",
+    "repositories": [
+      {
+        "commit": "9feed0198aa348488b8fd9b1bb31e6c0bece3d56",
+        "dirty": true,
+        "url": "https://github.com/ypwk/pure-state-tomography.git"
+      },
+      {
+        "commit": "9feed0198aa348488b8fd9b1bb31e6c0bece3d56",
+        "dirty": true,
+        "url": "https://github.com/ypwk/pure-state-tomography.git"
+      },
+      {
+        "commit": "9feed0198aa348488b8fd9b1bb31e6c0bece3d56",
+        "dirty": true,
+        "url": "https://github.com/ypwk/pure-state-tomography.git"
+      },
+      {
+        "commit": "9feed0198aa348488b8fd9b1bb31e6c0bece3d56",
+        "dirty": true,
+        "url": "https://github.com/ypwk/pure-state-tomography.git"
+      }
+    ],
+    "sources": [
+      [
+        "run_admixture_sweep.py",
+        "_sources/run_admixture_sweep_cb58689ce148447a06cba640616ce303.py"
+      ],
+      [
+        "src/algorithm.py",
+        "_sources/algorithm_6b8586f07647f3530ebe2c5bd7b752c9.py"
+      ],
+      [
+        "src/measurements.py",
+        "_sources/measurements_b2faa4c61674c25a30bf0c5f8d9c21f5.py"
+      ],
+      [
+        "src/qutils.py",
+        "_sources/qutils_695db7857d563c8bcd44a9efc827ed32.py"
+      ]
+    ]
+  },
+  "heartbeat": "2026-05-02T18:29:49.183571",
+  "host": {
+    "ENV": {},
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13700F",
+    "gpus": {
+      "driver_version": "591.74",
+      "gpus": [
+        {
+          "model": "NVIDIA GeForce RTX 4070",
+          "persistence_mode": true,
+          "total_memory": 12282
+        }
+      ]
+    },
+    "hostname": "kwu-desktop",
+    "os": [
+      "Linux",
+      "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35"
+    ],
+    "python_version": "3.11.14"
+  },
+  "meta": {
+    "command": "main",
+    "config_updates": {
+      "admixture": {
+        "e_values": [
+          0.0,
+          0.01,
+          0.02,
+          0.05,
+          0.1
+        ]
+      },
+      "execution": {
+        "num_runs": 512
+      }
+    },
+    "named_configs": [],
+    "options": {
+      "--beat": false,
+      "--beat-interval": null,
+      "--capture": null,
+      "--comment": null,
+      "--debug": false,
+      "--enforce_clean": false,
+      "--file_storage": null,
+      "--force": false,
+      "--help": false,
+      "--id": null,
+      "--loglevel": null,
+      "--mongo_db": null,
+      "--name": null,
+      "--pdb": false,
+      "--print-config": false,
+      "--priority": null,
+      "--queue": false,
+      "--s3": null,
+      "--sql": null,
+      "--tiny_db": null,
+      "--unobserved": false
+    }
+  },
+  "resources": [],
+  "result": null,
+  "start_time": "2026-05-02T18:29:48.960584",
+  "status": "COMPLETED",
+  "stop_time": "2026-05-02T18:29:49.182130"
+}

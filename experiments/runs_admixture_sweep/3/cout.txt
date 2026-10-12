@@ -1,0 +1,13 @@
+INFO - admixture_sweep - Running command 'main'
+INFO - admixture_sweep - Started run with ID "3"
+[admixture] e=0 exp=6 fid=0.999969 mse=7.696381e-06
+[admixture] e=0 exp=7 fid=0.999969 mse=7.696381e-06
+[admixture] e=0.01 exp=6 fid=0.999968 mse=8.042230e-06
+[admixture] e=0.01 exp=7 fid=0.999968 mse=8.042230e-06
+[admixture] e=0.02 exp=6 fid=0.999964 mse=9.015674e-06
+[admixture] e=0.02 exp=7 fid=0.999964 mse=9.015674e-06
+[admixture] e=0.05 exp=6 fid=0.999942 mse=1.440886e-05
+[admixture] e=0.05 exp=7 fid=0.999942 mse=1.440886e-05
+[admixture] e=0.1 exp=6 fid=0.999875 mse=3.115584e-05
+[admixture] e=0.1 exp=7 fid=0.999875 mse=3.115584e-05
+[admixture] results written to experiments/runs_admixture_sweep/3/admixture_sweep.csv

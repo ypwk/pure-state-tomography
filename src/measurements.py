@@ -10,7 +10,20 @@ MAX_CONC_JOB_COUNT = 3
 
 
 class measurement_manager:
-    def __init__(self, n_shots, execution_type, verbose: bool, batch_size: int = 1, partial_mixing: bool = False, noise_model=None, backend=None) -> None:
+    def __init__(
+        self,
+        n_shots,
+        execution_type,
+        verbose: bool,
+        batch_size: int = 1,
+        partial_mixing: bool = False,
+        noise_model=None,
+        backend=None,
+        admixture: float = 0.0,
+        admixture_mode: str = "maximally_mixed",
+        admixture_sampling: bool = False,
+        seed: int | None = 42,
+    ) -> None:
         self.n_shots = n_shots
         self.execution_type = execution_type
         self.verbose = verbose
@@ -18,6 +31,20 @@ class measurement_manager:
         self.clean_m_state = None
         self.partial_mixing = partial_mixing
         self.batch_size = batch_size
+        self.admixture = float(admixture)
+        self.admixture_mode = admixture_mode
+        self.admixture_sampling = admixture_sampling
+        self.seed = seed
+        self._sample_counter = 0
+
+        if not 0.0 <= self.admixture <= 1.0:
+            raise ValueError("admixture must be between 0 and 1.")
+        if self.admixture_mode != "maximally_mixed":
+            raise ValueError("Only admixture_mode='maximally_mixed' is supported.")
+        if self.admixture_sampling and (noise_model is not None or backend is not None):
+            raise ValueError(
+                "Admixture sampling currently cannot be combined with backend/noise_model."
+            )
 
         self.num_measurements = 0
 
@@ -37,6 +64,8 @@ class measurement_manager:
                 )
             if backend is not None:
                 self.aer_sim = AerSimulator.from_backend(backend=backend)
+            if noise_model is None and backend is None:
+                self.aer_sim = AerSimulator()
 
         elif self.execution_type == qutils.execution_type.statevector:
             self.aer_sim = StatevectorSimulator(
@@ -196,7 +225,8 @@ class measurement_manager:
                 statevector = np.asarray(
                     sim.run(circ).result().get_statevector(circ))
                 results[i] = np.abs(statevector) ** 2
-        # print(f"circuit: \n{circ}\n{circuit}")
+        if self.admixture_sampling:
+            results = (1.0 - self.admixture) * results + self.admixture / dim
         return results
 
     def __len__(self):  # count stored measurements
